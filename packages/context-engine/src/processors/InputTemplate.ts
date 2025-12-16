@@ -13,7 +13,7 @@ export interface InputTemplateConfig {
 
 /**
  * Input Template Processor
- * Responsible for applying input message templates to user messages
+ * Responsible for applying input message templates to the last user message only
  */
 export class InputTemplateProcessor extends BaseProcessor {
   readonly name = 'InputTemplateProcessor';
@@ -44,28 +44,35 @@ export class InputTemplateProcessor extends BaseProcessor {
 
       log(`Applying input template: ${this.config.inputTemplate}`);
 
-      // Process each message
-      for (let i = 0; i < clonedContext.messages.length; i++) {
-        const message = clonedContext.messages[i];
+      // Find the last user message index
+      let lastUserMessageIndex = -1;
+      for (let i = clonedContext.messages.length - 1; i >= 0; i--) {
+        if (clonedContext.messages[i].role === 'user') {
+          lastUserMessageIndex = i;
+          break;
+        }
+      }
 
-        // Only apply template to user messages
-        if (message.role === 'user') {
-          try {
-            const originalContent = message.content;
-            const processedContent = compiler({ text: originalContent });
+      // Apply template only to the last user message
+      if (lastUserMessageIndex !== -1) {
+        const message = clonedContext.messages[lastUserMessageIndex];
+        try {
+          const originalContent = message.content;
+          const processedContent = compiler({ text: originalContent });
 
-            if (processedContent !== originalContent) {
-              clonedContext.messages[i] = {
-                ...message,
-                content: processedContent,
-              };
-              processedCount++;
-              log(`Applied template to message ${message.id}`);
-            }
-          } catch (error) {
-            log.extend('error')(`Error applying template to message ${message.id}: ${error}`);
-            // Keep original message on error
+          if (processedContent !== originalContent) {
+            clonedContext.messages[lastUserMessageIndex] = {
+              ...message,
+              content: processedContent,
+            };
+            processedCount++;
+            log(`Applied template to last user message ${message.id}`);
           }
+        } catch (error) {
+          log.extend('error')(
+            `Error applying template to message ${message.id}: ${error}`,
+          );
+          // Keep original message on error
         }
       }
     } catch (error) {
