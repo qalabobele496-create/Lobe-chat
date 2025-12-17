@@ -78,14 +78,13 @@ export const chatMemory: StateCreator<
     const topicId = get().activeTopicId;
     if (!topicId) return;
 
-    await topicService.updateTopic(topicId, {
+    await get().internal_updateTopic(topicId, {
       historySummary: '',
       metadata: {
         lastSummarizedMessageIndex: 0,
         summarizationCount: 0,
       },
     });
-    await get().refreshTopic();
     await get().refreshMessages();
   },
 
@@ -164,7 +163,7 @@ export const chatMemory: StateCreator<
     const messagesProcessed = totalBatches * BATCH_SIZE;
     const newLastIndex = currentLastIndex + messagesProcessed;
 
-    await topicService.updateTopic(topicId, {
+    await get().internal_updateTopic(topicId, {
       historySummary: accumulatedSummary,
       metadata: {
         ...topic?.metadata,
@@ -174,7 +173,7 @@ export const chatMemory: StateCreator<
         summarizationCount: summaryCount,
       },
     });
-    await get().refreshTopic();
+
     await get().refreshMessages();
   },
 
