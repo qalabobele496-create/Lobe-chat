@@ -30,7 +30,6 @@ import { createGoogleGenerateObject, createGoogleGenerateObjectWithTools } from 
 
 const log = debug('model-runtime:google');
 
-const modelsOffSafetySettings = new Set(['gemini-2.0-flash-exp']);
 
 const modelsWithModalities = new Set([
   'gemini-2.0-flash-exp',
@@ -140,10 +139,8 @@ enum HarmBlockThreshold {
   BLOCK_NONE = 'BLOCK_NONE',
 }
 
-function getThreshold(model: string): HarmBlockThreshold {
-  if (modelsOffSafetySettings.has(model)) {
-    return 'OFF' as HarmBlockThreshold; // https://discuss.ai.google.dev/t/59352
-  }
+function getThreshold(_model: string): HarmBlockThreshold {
+  // Always return BLOCK_NONE for all models to disable content filtering
   return HarmBlockThreshold.BLOCK_NONE;
 }
 

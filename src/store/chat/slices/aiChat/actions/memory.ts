@@ -13,14 +13,17 @@ import { topicSelectors } from '../../../selectors';
 // Delimiter used to separate individual summaries in the accumulated history
 const SUMMARY_DELIMITER = '\n\n---\n\n';
 
+// Number of messages per compression batch
+const BATCH_SIZE = 10;
+
 export interface ChatMemoryAction {
   /**
-   * Incrementally summarize history messages.
-   * Appends new summaries to existing ones, creating S1 + S2 + S3 format.
+   * Incrementally summarize history messages in batches.
+   * Each batch of BATCH_SIZE messages creates one summary (S1, S2, S3...).
+   * Example: 30 messages with historyCount=10 → S1(M1-M10) + S2(M11-M20) + M21-M30
    * @param messages - The new messages to summarize (not yet summarized)
-   * @param totalMessageCount - Total number of messages in the conversation (for tracking)
    */
-  internal_summaryHistory: (messages: UIChatMessage[], totalMessageCount?: number) => Promise<void>;
+  internal_summaryHistory: (messages: UIChatMessage[]) => Promise<void>;
 }
 
 export const chatMemory: StateCreator<
@@ -29,42 +32,54 @@ export const chatMemory: StateCreator<
   [],
   ChatMemoryAction
 > = (set, get) => ({
-  internal_summaryHistory: async (messages, _totalMessageCount) => {
+  internal_summaryHistory: async (messages) => {
     const topicId = get().activeTopicId;
-    if (messages.length <= 1 || !topicId) return;
+    if (messages.length < BATCH_SIZE || !topicId) return;
 
     // Get current topic to access previous summaries and metadata
     const topic = topicSelectors.currentActiveTopic(get());
-    const previousSummaries = topic?.historySummary;
+    let accumulatedSummary = topic?.historySummary || '';
     const currentLastIndex = topic?.metadata?.lastSummarizedMessageIndex ?? 0;
-    const summaryCount = topic?.metadata?.summarizationCount ?? 0;
+    let summaryCount = topic?.metadata?.summarizationCount ?? 0;
 
     const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
 
-    let newSummary = '';
-    await chatService.fetchPresetTaskResult({
-      onFinish: async (text) => {
-        newSummary = text;
-      },
-      // Generate summary for ONLY the new messages (not incorporating previous summary)
-      // This creates independent summaries that stack: S1, S2, S3...
-      params: { ...chainIncrementalSummary(undefined, messages), model, provider, stream: false },
-      trace: {
-        sessionId: get().activeId,
-        topicId: get().activeTopicId,
-        traceName: TraceNameMap.SummaryHistoryMessages,
-      },
-    });
+    // Calculate how many complete batches we can create
+    const totalBatches = Math.floor(messages.length / BATCH_SIZE);
 
-    // APPEND new summary to existing summaries with delimiter
-    // Format: S1 + delimiter + S2 + delimiter + S3...
-    const accumulatedSummary = previousSummaries
-      ? `${previousSummaries}${SUMMARY_DELIMITER}${newSummary}`
-      : newSummary;
+    if (totalBatches === 0) return;
 
-    // Calculate new last summarized index
-    const newLastIndex = currentLastIndex + messages.length;
-    const summarizationCount = summaryCount + 1;
+    // Process each batch sequentially
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const startIdx = batchIndex * BATCH_SIZE;
+      const endIdx = startIdx + BATCH_SIZE;
+      const batchMessages = messages.slice(startIdx, endIdx);
+
+      let batchSummary = '';
+      await chatService.fetchPresetTaskResult({
+        onFinish: async (text) => {
+          batchSummary = text;
+        },
+        // Generate summary for this batch only (independent summary)
+        params: { ...chainIncrementalSummary(undefined, batchMessages), model, provider, stream: false },
+        trace: {
+          sessionId: get().activeId,
+          topicId: get().activeTopicId,
+          traceName: TraceNameMap.SummaryHistoryMessages,
+        },
+      });
+
+      // Append this batch's summary to accumulated summaries
+      accumulatedSummary = accumulatedSummary
+        ? `${accumulatedSummary}${SUMMARY_DELIMITER}${batchSummary}`
+        : batchSummary;
+
+      summaryCount++;
+    }
+
+    // Calculate new last summarized index (all complete batches processed)
+    const messagesProcessed = totalBatches * BATCH_SIZE;
+    const newLastIndex = currentLastIndex + messagesProcessed;
 
     await topicService.updateTopic(topicId, {
       historySummary: accumulatedSummary,
@@ -73,7 +88,7 @@ export const chatMemory: StateCreator<
         model,
         provider,
         lastSummarizedMessageIndex: newLastIndex,
-        summarizationCount,
+        summarizationCount: summaryCount,
       },
     });
     await get().refreshTopic();

@@ -1060,7 +1060,7 @@ export const streamingExecutor: StateCreator<
     const topic = topicSelectors.currentActiveTopic(get());
     const lastSummarizedIndex = topic?.metadata?.lastSummarizedMessageIndex ?? 0;
     const historyCount = agentChatConfigSelectors.historyCount(agentStoreState);
-    const compressThreshold = chatConfig.compressThreshold ?? 10;
+    const compressThreshold = 10; // Default: trigger compression after 10 new messages
 
     if (
       agentChatConfigSelectors.enableHistoryCount(agentStoreState) &&
@@ -1077,7 +1077,7 @@ export const streamingExecutor: StateCreator<
 
         // Only compress if we have enough new messages to meet the threshold
         if (unsummarizedMessages.length >= compressThreshold) {
-          await get().internal_summaryHistory(unsummarizedMessages, messages.length);
+          await get().internal_summaryHistory(unsummarizedMessages);
         }
       }
     }
