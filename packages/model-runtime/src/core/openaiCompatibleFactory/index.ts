@@ -333,13 +333,19 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
         if (shouldUseResponses) {
           processedPayload = { ...payload, apiMode: 'responses' } as any;
         }
+        // Detect if tools are present - disable streaming for tool calls
+        // as many providers don't properly support streaming with function calling
+        const hasTools = Array.isArray(processedPayload.tools) && processedPayload.tools.length > 0;
+        if (hasTools) {
+          log('disabling streaming due to tools presence');
+        }
 
         // 再进行工厂级处理
         const postPayload = chatCompletion?.handlePayload
           ? chatCompletion.handlePayload(processedPayload, this._options)
           : ({
               ...processedPayload,
-              stream: processedPayload.stream ?? true,
+              stream: hasTools ? false : (processedPayload.stream ?? true),
             } as OpenAI.ChatCompletionCreateParamsStreaming);
 
         if ((postPayload as any).apiMode === 'responses') {
