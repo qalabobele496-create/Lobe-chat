@@ -1054,21 +1054,32 @@ export const streamingExecutor: StateCreator<
       }
     }
 
-    // Summary history if context messages is larger than historyCount
+    // Incremental History Compression:
+    // Only compress NEW messages that haven't been summarized yet
+    // This preserves context from previous compression rounds
+    const topic = topicSelectors.currentActiveTopic(get());
+    const lastSummarizedIndex = topic?.metadata?.lastSummarizedMessageIndex ?? 0;
     const historyCount = agentChatConfigSelectors.historyCount(agentStoreState);
+    const compressThreshold = chatConfig.compressThreshold ?? 10;
 
     if (
       agentChatConfigSelectors.enableHistoryCount(agentStoreState) &&
-      chatConfig.enableCompressHistory &&
-      messages.length > historyCount
+      chatConfig.enableCompressHistory
     ) {
-      // after generation: [u1,a1,u2,a2,u3,a3]
-      // but the `messages` is still: [u1,a1,u2,a2,u3]
-      // So if historyCount=2, we need to summary [u1,a1,u2,a2]
-      // because user find UI is [u1,a1,u2,a2 | u3,a3]
-      const historyMessages = messages.slice(0, -historyCount + 1);
+      // Calculate the range of messages to potentially compress:
+      // - Start from lastSummarizedIndex (messages already summarized)
+      // - End before the last historyCount messages (to keep them in context)
+      const endIndex = Math.max(0, messages.length - historyCount + 1);
 
-      await get().internal_summaryHistory(historyMessages);
+      if (endIndex > lastSummarizedIndex) {
+        // Get only the NEW unsummarized messages
+        const unsummarizedMessages = messages.slice(lastSummarizedIndex, endIndex);
+
+        // Only compress if we have enough new messages to meet the threshold
+        if (unsummarizedMessages.length >= compressThreshold) {
+          await get().internal_summaryHistory(unsummarizedMessages, messages.length);
+        }
+      }
     }
   },
 });

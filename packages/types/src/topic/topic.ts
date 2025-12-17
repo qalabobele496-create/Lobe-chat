@@ -39,6 +39,10 @@ export interface ChatTopicMetadata {
   provider?: string;
   userMemoryExtractRunState?: TopicUserMemoryExtractRunState;
   userMemoryExtractStatus?: 'pending' | 'completed' | 'failed';
+  /** Index of the last message that has been summarized */
+  lastSummarizedMessageIndex?: number;
+  /** Number of times the history has been compressed for this topic */
+  summarizationCount?: number;
 }
 
 export interface ChatTopicSummary {
