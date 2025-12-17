@@ -58,8 +58,9 @@ export interface ChatMemoryAction {
    * - S3 = compress(M22-M31, context: M1-files + S1 + S2)
    *
    * @param messages - All messages to process (including file messages)
+   * @param options - Optional configuration (e.g., forceReset for manual summary)
    */
-  internal_summaryHistory: (messages: UIChatMessage[]) => Promise<void>;
+  internal_summaryHistory: (messages: UIChatMessage[], options?: { forceReset?: boolean }) => Promise<void>;
   /**
    * Manually trigger a full summary of all messages in the current topic.
    * Clears existing summary and creates a new one from scratch.
@@ -88,15 +89,18 @@ export const chatMemory: StateCreator<
     await get().refreshMessages();
   },
 
-  internal_summaryHistory: async (messages) => {
+  internal_summaryHistory: async (messages, options) => {
     const topicId = get().activeTopicId;
     if (!topicId) return;
 
     // Get current topic to access previous summaries and metadata
     const topic = topicSelectors.currentActiveTopic(get());
-    let accumulatedSummary = topic?.historySummary || '';
-    const currentLastIndex = topic?.metadata?.lastSummarizedMessageIndex ?? 0;
-    let summaryCount = topic?.metadata?.summarizationCount ?? 0;
+
+    // If forceReset is true (Manual Summary), start fresh. Otherwise, use accumulated summary.
+    let accumulatedSummary = options?.forceReset ? '' : (topic?.historySummary || '');
+
+    const currentLastIndex = options?.forceReset ? 0 : (topic?.metadata?.lastSummarizedMessageIndex ?? 0);
+    let summaryCount = options?.forceReset ? 0 : (topic?.metadata?.summarizationCount ?? 0);
 
     const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
 
@@ -178,14 +182,14 @@ export const chatMemory: StateCreator<
     const topicId = get().activeTopicId;
     if (!topicId) return;
 
-    // First, clear existing summary
+    // First, clear existing summary (just to be safe/keep state clean)
     await get().clearHistorySummary();
 
     // Get all messages in the current topic
     const messages = chatSelectors.activeBaseChats(get());
 
-    // Trigger the summary with all messages (including file messages for context)
-    await get().internal_summaryHistory(messages);
+    // Trigger the summary with all messages + force reset to ignore stale store state
+    await get().internal_summaryHistory(messages, { forceReset: true });
   },
 });
 
