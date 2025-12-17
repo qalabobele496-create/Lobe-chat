@@ -393,11 +393,39 @@ export const chatTopic: StateCreator<
   },
 
   internal_updateTopic: async (id, data) => {
+    // 1. Optimistic update of local store
     get().internal_dispatchTopic({ type: 'updateTopic', id, value: data });
 
     get().internal_updateTopicLoading(id, true);
+
+    // 2. Optimistic update of SWR cache
+    // This effectively "writes" to the cache so subsequent re-renders use this data immediately
+    // and don't wait for server roundtrip
+    const activeId = get().activeId;
+    const cacheKey = [SWR_USE_FETCH_TOPIC, activeId];
+
+    await mutate(
+      cacheKey,
+      (currentTopics: ChatTopic[] | undefined) => {
+        if (!currentTopics) return [];
+        return produce(currentTopics, (draft) => {
+          const index = draft.findIndex(t => t.id === id);
+          if (index !== -1) {
+            // TS ignore is needed because date handling in reducer/immer
+            // @ts-ignore
+            draft[index] = { ...draft[index], ...data, updatedAt: new Date() };
+          }
+        });
+      },
+      false // set to false to populate cache without revalidation
+    );
+
+    // 3. Perform server update (fire and forget or wait depending on needs)
     await topicService.updateTopic(id, data);
-    await get().refreshTopic();
+
+    // 4. Finally revalidate to ensure consistency (optional, can be delayed)
+    // await get().refreshTopic(); // <-- Removing this aggressive re-fetch preventing reversion
+
     get().internal_updateTopicLoading(id, false);
   },
   internal_createTopic: async (params) => {
