@@ -9,6 +9,7 @@ import { useUserStore } from '@/store/user';
 import { systemAgentSelectors } from '@/store/user/selectors';
 
 import { topicSelectors } from '../../../selectors';
+import { chatSelectors } from '../../../selectors';
 
 // Delimiter used to separate individual summaries in the accumulated history
 const SUMMARY_DELIMITER = '\n\n---\n\n';
@@ -18,12 +19,22 @@ const BATCH_SIZE = 10;
 
 export interface ChatMemoryAction {
   /**
+   * Clear the history summary for the current topic.
+   * Resets historySummary and all related metadata.
+   */
+  clearHistorySummary: () => Promise<void>;
+  /**
    * Incrementally summarize history messages in batches.
    * Each batch of BATCH_SIZE messages creates one summary (S1, S2, S3...).
    * Example: 30 messages with historyCount=10 → S1(M1-M10) + S2(M11-M20) + M21-M30
    * @param messages - The new messages to summarize (not yet summarized)
    */
   internal_summaryHistory: (messages: UIChatMessage[]) => Promise<void>;
+  /**
+   * Manually trigger a full summary of all messages in the current topic.
+   * Clears existing summary and creates a new one from scratch.
+   */
+  triggerManualSummary: () => Promise<void>;
 }
 
 export const chatMemory: StateCreator<
@@ -32,6 +43,21 @@ export const chatMemory: StateCreator<
   [],
   ChatMemoryAction
 > = (set, get) => ({
+  clearHistorySummary: async () => {
+    const topicId = get().activeTopicId;
+    if (!topicId) return;
+
+    await topicService.updateTopic(topicId, {
+      historySummary: undefined,
+      metadata: {
+        lastSummarizedMessageIndex: 0,
+        summarizationCount: 0,
+      },
+    });
+    await get().refreshTopic();
+    await get().refreshMessages();
+  },
+
   internal_summaryHistory: async (messages) => {
     const topicId = get().activeTopicId;
     if (messages.length < BATCH_SIZE || !topicId) return;
@@ -94,4 +120,20 @@ export const chatMemory: StateCreator<
     await get().refreshTopic();
     await get().refreshMessages();
   },
+
+  triggerManualSummary: async () => {
+    const topicId = get().activeTopicId;
+    if (!topicId) return;
+
+    // First, clear existing summary
+    await get().clearHistorySummary();
+
+    // Get all messages in the current topic
+    const messages = chatSelectors.activeBaseChats(get());
+    if (messages.length < BATCH_SIZE) return;
+
+    // Trigger the summary with all messages
+    await get().internal_summaryHistory(messages);
+  },
 });
+

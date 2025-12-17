@@ -1,24 +1,56 @@
 'use client';
 
 import { Form, type FormGroupItemType, ImageSelect, SliderWithInput, TextArea } from '@lobehub/ui';
-import { Switch } from 'antd';
+import { Button, Switch, Space, App } from 'antd';
 import { useThemeMode } from 'antd-style';
 import isEqual from 'fast-deep-equal';
-import { LayoutList, MessagesSquare } from 'lucide-react';
-import { memo } from 'react';
+import { LayoutList, MessagesSquare, Trash2, RefreshCw } from 'lucide-react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { FORM_STYLE } from '@/const/layoutTokens';
 import { imageUrl } from '@/const/url';
+import { useChatStore } from '@/store/chat';
 
 import { selectors, useStore } from '../store';
 
 const AgentChat = memo(() => {
   const { t } = useTranslation('setting');
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const { isDarkMode } = useThemeMode();
   const updateConfig = useStore((s) => s.setChatConfig);
   const config = useStore(selectors.currentChatConfig, isEqual);
+
+  const [clearingLoading, setClearingLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const clearHistorySummary = useChatStore((s) => s.clearHistorySummary);
+  const triggerManualSummary = useChatStore((s) => s.triggerManualSummary);
+
+  const handleClearSummary = async () => {
+    setClearingLoading(true);
+    try {
+      await clearHistorySummary();
+      message.success(t('settingChat.summaryClear.success'));
+    } catch {
+      message.error(t('settingChat.summaryClear.error'));
+    } finally {
+      setClearingLoading(false);
+    }
+  };
+
+  const handleManualSummary = async () => {
+    setSummaryLoading(true);
+    try {
+      await triggerManualSummary();
+      message.success(t('settingChat.summaryManual.success'));
+    } catch {
+      message.error(t('settingChat.summaryManual.error'));
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   const chat: FormGroupItemType = {
     children: [
@@ -99,6 +131,34 @@ const AgentChat = memo(() => {
         name: 'enableCompressHistory',
         valuePropName: 'checked',
       },
+      {
+        children: (
+          <Space>
+            <Button
+              danger
+              icon={<Trash2 size={14} />}
+              loading={clearingLoading}
+              onClick={handleClearSummary}
+              size="small"
+            >
+              {t('settingChat.summaryClear.button')}
+            </Button>
+            <Button
+              icon={<RefreshCw size={14} />}
+              loading={summaryLoading}
+              onClick={handleManualSummary}
+              size="small"
+              type="primary"
+            >
+              {t('settingChat.summaryManual.button')}
+            </Button>
+          </Space>
+        ),
+        desc: t('settingChat.summaryActions.desc'),
+        hidden: !config.enableHistoryCount || !config.enableCompressHistory,
+        label: t('settingChat.summaryActions.title'),
+        minWidth: undefined,
+      },
     ],
     title: t('settingChat.title'),
   };
@@ -127,3 +187,4 @@ const AgentChat = memo(() => {
 });
 
 export default AgentChat;
+

@@ -343,6 +343,20 @@ export default {
     enableCompressHistory: {
       title: '开启历史消息自动总结',
     },
+    summaryActions: {
+      desc: '管理当前话题的历史总结',
+      title: '历史总结管理',
+    },
+    summaryClear: {
+      button: '清除总结',
+      error: '清除总结失败',
+      success: '总结已清除',
+    },
+    summaryManual: {
+      button: '手动总结',
+      error: '生成总结失败',
+      success: '总结已生成',
+    },
     enableHistoryCount: {
       alias: '不限制',
       limited: '只包含 {{number}} 条会话消息',
