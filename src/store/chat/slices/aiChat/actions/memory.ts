@@ -48,7 +48,7 @@ export const chatMemory: StateCreator<
     if (!topicId) return;
 
     await topicService.updateTopic(topicId, {
-      historySummary: undefined,
+      historySummary: '',
       metadata: {
         lastSummarizedMessageIndex: 0,
         summarizationCount: 0,
