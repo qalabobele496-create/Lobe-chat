@@ -12,7 +12,8 @@ import { topicSelectors } from '../../../selectors';
 import { chatSelectors } from '../../../selectors';
 
 // Delimiter used to separate individual summaries in the accumulated history
-const SUMMARY_DELIMITER = '\n\n---\n\n';
+// Using a unique delimiter that won't appear in normal markdown content
+const SUMMARY_DELIMITER = '\n\n<!-- SUMMARY_BREAK -->\n\n';
 
 // Number of messages per compression batch
 const BATCH_SIZE = 10;

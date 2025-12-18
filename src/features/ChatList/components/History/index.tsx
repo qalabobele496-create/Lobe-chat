@@ -14,7 +14,8 @@ import { topicSelectors } from '@/store/chat/selectors';
 import HistoryDivider from './HistoryDivider';
 
 // Same delimiter used in memory.ts for separating summaries
-const SUMMARY_DELIMITER = '\n\n---\n\n';
+// Using a unique delimiter that won't appear in normal markdown content
+const SUMMARY_DELIMITER = '\n\n<!-- SUMMARY_BREAK -->\n\n';
 
 const useStyles = createStyles(({ css, token }) => ({
   container: css`
