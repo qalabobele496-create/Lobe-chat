@@ -39,8 +39,10 @@ export interface ChatTopicMetadata {
   provider?: string;
   userMemoryExtractRunState?: TopicUserMemoryExtractRunState;
   userMemoryExtractStatus?: 'pending' | 'completed' | 'failed';
-  /** Index of the last message that has been summarized */
+  /** @deprecated Use lastSummarizedMessageId instead */
   lastSummarizedMessageIndex?: number;
+  /** ID of the first unsummarized message (where the divider should appear) */
+  lastSummarizedMessageId?: string;
   /** Number of times the history has been compressed for this topic */
   summarizationCount?: number;
 }
