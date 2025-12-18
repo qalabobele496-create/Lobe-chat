@@ -119,6 +119,9 @@ export const chatMemory: StateCreator<
     if (totalBatches === 0) return;
 
     // Process each batch sequentially with accumulated context
+    // IMPORTANT: Each batch contains EXACTLY `BATCH_SIZE` messages that have NEVER been summarized before.
+    // The `lastSummarizedMessageIndex` ensures NO overlap - we only process messages[lastIndex:lastIndex+BATCH_SIZE]
+    // The AI prompt is also configured to ONLY summarize the current batch, using previous summaries as READ-ONLY context.
     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
       const startIdx = batchIndex * BATCH_SIZE;
       const endIdx = startIdx + BATCH_SIZE;
