@@ -110,17 +110,74 @@ const WRITING_STYLE = `### WRITING STYLE — APEX QUALITY STANDARDS:
 - **Coverage**: Include BOTH major plot points AND smaller memorable moments
 - **Specificity**: Use exact names, numbers, and details — never vague approximations`;
 
-const OUTPUT_REQUIREMENTS_FIRST_BATCH = `### OUTPUT REQUIREMENTS — MANDATORY:
-- **LENGTH**: Approximately 5000 tokens (3500-4000 words). SHORT summaries are UNACCEPTABLE.
-- **LANGUAGE**: Maintain the ORIGINAL language of the conversation throughout.
-- **FORMAT**: Use markdown headers (## ###). Do NOT use horizontal rules (---).
-- **COMPLETENESS**: Every significant event, revelation, and moment must be captured.`;
+const OUTPUT_REQUIREMENTS_FIRST_BATCH = `## ⛔ MANDATORY LENGTH REQUIREMENT — READ CAREFULLY ⛔
 
-const OUTPUT_REQUIREMENTS_INCREMENTAL = `### OUTPUT REQUIREMENTS — MANDATORY:
-- **LENGTH**: Approximately 5000 tokens (3500-4000 words). SHORT summaries are UNACCEPTABLE.
-- **LANGUAGE**: Maintain the ORIGINAL language throughout.
-- **FORMAT**: Use markdown headers (## ###). NO horizontal rules (---).
-- **NOVELTY**: 100% NEW content from this batch. ZERO overlap with context.`;
+**YOUR OUTPUT MUST BE AT LEAST 3500 WORDS (approximately 5000 tokens).**
+
+This is NON-NEGOTIABLE. Summaries shorter than 3500 words are REJECTED and considered FAILURES.
+
+### WHY THIS LENGTH IS REQUIRED:
+- The input contains ~20,000 tokens of rich RPG content
+- A 4:1 compression ratio means ~5000 tokens output
+- Short summaries lose critical narrative details, dialogue, and mechanical data
+- This chronicle will be the ONLY record of these events — completeness is essential
+
+### HOW TO ACHIEVE REQUIRED LENGTH:
+1. Include EVERY combat round with specific damage numbers and ability names
+2. Quote ALL significant dialogue verbatim (aim for 10-20 quotes minimum)
+3. Describe EVERY location with full sensory details (5 senses)
+4. Document ALL mechanical changes (HP, resources, items, conditions)
+5. Capture emotional nuances and character reactions in detail
+6. Include party discussions, planning, and banter
+7. Describe NPC appearances, mannerisms, and speech patterns
+8. Note environmental details and atmospheric elements
+
+### OUTPUT FORMAT:
+- **LANGUAGE**: Maintain the ORIGINAL language of the conversation throughout
+- **FORMAT**: Use markdown headers (## ###). Do NOT use horizontal rules (---)
+- **STRUCTURE**: Use all 9 required sections with substantial content in each
+
+### SELF-CHECK BEFORE SUBMITTING:
+- [ ] My output is AT LEAST 3500 words
+- [ ] I included 10+ verbatim dialogue quotes
+- [ ] Every combat action is documented with numbers
+- [ ] All locations have sensory descriptions
+- [ ] Character emotions and reactions are detailed`;
+
+const OUTPUT_REQUIREMENTS_INCREMENTAL = `## ⛔ MANDATORY LENGTH REQUIREMENT — READ CAREFULLY ⛔
+
+**YOUR OUTPUT MUST BE AT LEAST 3500 WORDS (approximately 5000 tokens).**
+
+This is NON-NEGOTIABLE. Summaries shorter than 3500 words are REJECTED and considered FAILURES.
+
+### WHY THIS LENGTH IS REQUIRED:
+- The input contains ~20,000 tokens of rich RPG content
+- A 4:1 compression ratio means ~5000 tokens output
+- Short summaries lose critical narrative details, dialogue, and mechanical data
+- This chronicle will be the ONLY record of these NEW events — completeness is essential
+
+### HOW TO ACHIEVE REQUIRED LENGTH:
+1. Include EVERY combat round with specific damage numbers and ability names
+2. Quote ALL significant dialogue verbatim (aim for 10-20 quotes minimum)
+3. Describe EVERY new location with full sensory details (5 senses)
+4. Document ALL mechanical changes (HP, resources, items, conditions)
+5. Capture emotional nuances and character reactions in detail
+6. Include party discussions, planning, and banter
+7. Describe NPC appearances, mannerisms, and speech patterns
+8. Note environmental details and atmospheric elements
+
+### OUTPUT FORMAT:
+- **LANGUAGE**: Maintain the ORIGINAL language throughout
+- **FORMAT**: Use markdown headers (## ###). NO horizontal rules (---)
+- **NOVELTY**: 100% NEW content from this batch. ZERO overlap with context
+
+### SELF-CHECK BEFORE SUBMITTING:
+- [ ] My output is AT LEAST 3500 words (count them!)
+- [ ] I included 10+ verbatim dialogue quotes from THIS batch
+- [ ] Every NEW combat action is documented with numbers
+- [ ] All NEW locations have sensory descriptions
+- [ ] Character emotions and reactions are detailed
+- [ ] ZERO content is repeated from <context>`;
 
 const ANTI_OVERLAP_RULES = `## ⚠️ CRITICAL: ANTI-OVERLAP PROTOCOL
 
