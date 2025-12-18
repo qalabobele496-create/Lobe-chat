@@ -12,7 +12,7 @@ export interface ThreadChatItemProps {
 }
 
 const ThreadChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
-  const [threadMessageId, threadStartMessageIndex, historyLength, lastSummarizedIndex] = useChatStore((s) => {
+  const [threadMessageId, threadStartMessageIndex, _historyLength, lastSummarizedIndex] = useChatStore((s) => {
     const topic = topicSelectors.currentActiveTopic(s);
     return [
       threadSelectors.threadSourceMessageId(s),

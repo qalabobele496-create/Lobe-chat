@@ -220,8 +220,10 @@ export const chatMemory: StateCreator<
     const messages = chatSelectors.activeBaseChats(get());
 
     // Get historyCount from agent config (number of messages to keep in context)
-    const agentStoreState = await import('@/store/agent/store').then((m) => m.getAgentStoreState());
-    const historyCount = (await import('@/store/agent/selectors')).agentChatConfigSelectors.historyCount(agentStoreState);
+    const agentStoreModule = await import('@/store/agent/store');
+    const agentStoreState = agentStoreModule.getAgentStoreState();
+    const agentSelectorsModule = await import('@/store/agent/selectors');
+    const historyCount = agentSelectorsModule.agentChatConfigSelectors.historyCount(agentStoreState);
 
     // Calculate endIndex: leave the last historyCount messages unsummarized
     // E.g., with 45 messages and historyCount=10: endIndex = 45 - 10 + 1 = 36
