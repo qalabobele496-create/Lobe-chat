@@ -48,6 +48,7 @@ The input contains ~20,000 tokens that need to be compressed to ~5000 tokens (4:
 5. Maintain coherence and continuity with the provided context without duplicating it.
 6. Maintain the original language.
 7. If a character, location, or event was already described in context, reference it briefly but DO NOT re-describe it.
+8. **FORMATTING**: Do NOT use horizontal rules (---) in your summary. Use markdown headers (## or ###) for section breaks instead.
 
 ## CONTENT REQUIREMENTS FOR RPG SESSIONS:
 Include in your summary:
@@ -80,6 +81,9 @@ Create the summary now, focusing EXCLUSIVELY on NEW developments. Remember: ~500
 
 ### MANDATORY OUTPUT LENGTH: ~5000 tokens (3500-4000 words)
 Your summary MUST be comprehensive and detailed. Short summaries are UNACCEPTABLE.
+
+### FORMATTING RULE:
+Do NOT use horizontal rules (---) anywhere in your summary. Use markdown headers (## or ###) for section breaks instead.
 
 ### INCLUDE IN YOUR SUMMARY:
 - **Combat details**: Tactics, abilities/spells, damage, critical moments
