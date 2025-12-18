@@ -12,13 +12,13 @@ export interface ThreadChatItemProps {
 }
 
 const ThreadChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
-  const [threadMessageId, threadStartMessageIndex, , lastSummarizedIndex] = useChatStore((s) => {
+  const [threadMessageId, threadStartMessageIndex, , lastSummarizedMessageId] = useChatStore((s) => {
     const topic = topicSelectors.currentActiveTopic(s);
     return [
       threadSelectors.threadSourceMessageId(s),
       threadSelectors.threadSourceMessageIndex(s),
       threadSelectors.portalDisplayChatsLength(s),
-      topic?.metadata?.lastSummarizedMessageIndex ?? 0,
+      topic?.metadata?.lastSummarizedMessageId as string | undefined,
     ];
   });
 
@@ -31,8 +31,8 @@ const ThreadChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
 
   const isParentMessage = index <= threadStartMessageIndex;
 
-  // Show history divider at the first message AFTER the last summarized message
-  const enableHistoryDivider = lastSummarizedIndex > 0 && index === lastSummarizedIndex;
+  // Show history divider when the current message ID matches the first unsummarized message ID
+  const enableHistoryDivider = !!lastSummarizedMessageId && id === lastSummarizedMessageId;
 
   return (
     <ChatItem

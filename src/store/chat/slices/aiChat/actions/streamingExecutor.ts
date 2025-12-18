@@ -1058,7 +1058,20 @@ export const streamingExecutor: StateCreator<
     // Only compress NEW messages that haven't been summarized yet
     // This preserves context from previous compression rounds
     const topic = topicSelectors.currentActiveTopic(get());
-    const lastSummarizedIndex = topic?.metadata?.lastSummarizedMessageIndex ?? 0;
+    const lastSummarizedMessageId = topic?.metadata?.lastSummarizedMessageId as string | undefined;
+
+    // Calculate the lastSummarizedIndex from the message ID
+    // If no ID stored (never summarized), start from 0
+    // If ID is stored, find the message index - the divider is BEFORE this message
+    // So lastSummarizedIndex = index of the first unsummarized message
+    let lastSummarizedIndex = 0;
+    if (lastSummarizedMessageId) {
+      const messageIndex = messages.findIndex((m) => m.id === lastSummarizedMessageId);
+      if (messageIndex !== -1) {
+        lastSummarizedIndex = messageIndex;
+      }
+    }
+
     const historyCount = agentChatConfigSelectors.historyCount(agentStoreState);
     const compressThreshold = 10; // Default: trigger compression after 10 new messages
 

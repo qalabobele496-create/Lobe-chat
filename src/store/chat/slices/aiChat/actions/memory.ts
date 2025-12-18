@@ -82,7 +82,7 @@ export const chatMemory: StateCreator<
     await get().internal_updateTopic(topicId, {
       historySummary: '',
       metadata: {
-        lastSummarizedMessageIndex: 0,
+        lastSummarizedMessageId: undefined,
         summarizationCount: 0,
       },
     });
@@ -99,8 +99,18 @@ export const chatMemory: StateCreator<
     // If forceReset is true (Manual Summary), start fresh. Otherwise, use accumulated summary.
     let accumulatedSummary = options?.forceReset ? '' : (topic?.historySummary || '');
 
-    // IMPORTANT: lastSummarizedMessageIndex is a GLOBAL index (counting ALL messages, including attachments)
-    const currentLastIndex = options?.forceReset ? 0 : (topic?.metadata?.lastSummarizedMessageIndex ?? 0);
+    // Calculate the currentLastIndex from the stored message ID
+    // This is the index of the first unsummarized message
+    let currentLastIndex = 0;
+    if (!options?.forceReset) {
+      const lastSummarizedMessageId = topic?.metadata?.lastSummarizedMessageId as string | undefined;
+      if (lastSummarizedMessageId) {
+        const messageIndex = messages.findIndex((m) => m.id === lastSummarizedMessageId);
+        if (messageIndex !== -1) {
+          currentLastIndex = messageIndex;
+        }
+      }
+    }
     let summaryCount = options?.forceReset ? 0 : (topic?.metadata?.summarizationCount ?? 0);
 
     const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
@@ -114,7 +124,7 @@ export const chatMemory: StateCreator<
     const globalFilesContext = formatFilesContext(allFileMessages);
 
     // ========================================================================
-    // STEP 2: Get messages to process (all messages after lastSummarizedMessageIndex)
+    // STEP 2: Get messages to process (all messages after currentLastIndex)
     // Using GLOBAL index - counts ALL messages
     // ALL messages are summarized (including those with attachments)
     // ========================================================================
@@ -190,10 +200,15 @@ export const chatMemory: StateCreator<
 
     // ========================================================================
     // STEP 4: Update topic with new summary and metadata
-    // newLastIndex = GLOBAL index (counts ALL messages including attachments)
+    // Store the ID of the FIRST UNSUMMARIZED message (where divider should appear)
     // ========================================================================
     const messagesProcessed = totalNewBatches * BATCH_SIZE;
     const newLastIndex = currentLastIndex + messagesProcessed;
+
+    // Get the ID of the first message AFTER the last summarized batch
+    // This is where the divider will appear in the UI
+    const firstUnsummarizedMessage = messages[newLastIndex];
+    const firstUnsummarizedMessageId = firstUnsummarizedMessage?.id;
 
     await get().internal_updateTopic(topicId, {
       historySummary: accumulatedSummary,
@@ -201,7 +216,7 @@ export const chatMemory: StateCreator<
         ...topic?.metadata,
         model,
         provider,
-        lastSummarizedMessageIndex: newLastIndex,
+        lastSummarizedMessageId: firstUnsummarizedMessageId,
         summarizationCount: summaryCount,
       },
     });

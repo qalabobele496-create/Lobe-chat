@@ -51,22 +51,21 @@ export interface ThreadChatItemProps {
 const MainChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
   const { styles, cx } = useStyles();
 
-  // Get showThread, historyLength, and lastSummarizedMessageIndex from chat store
-  const [showThread, historyLength, lastSummarizedIndex] = useChatStore((s) => {
+  // Get showThread, historyLength, and lastSummarizedMessageId from chat store
+  const [showThread, historyLength, lastSummarizedMessageId] = useChatStore((s) => {
     const topic = topicSelectors.currentActiveTopic(s);
     return [
       threadSelectors.hasThreadBySourceMsgId(id)(s),
       displayMessageSelectors.mainDisplayChatIDs(s).length,
-      topic?.metadata?.lastSummarizedMessageIndex ?? 0,
+      topic?.metadata?.lastSummarizedMessageId as string | undefined,
     ];
   });
 
   const displayMode = useAgentStore(agentChatConfigSelectors.displayMode);
 
-  // Show history divider at the first message AFTER the last summarized message
-  // If lastSummarizedIndex is 20, divider should appear before message at index 20 (0-based)
-  // Which corresponds to position 21 (1-based), i.e., the first unsummarized message
-  const enableHistoryDivider = lastSummarizedIndex > 0 && index === lastSummarizedIndex;
+  // Show history divider when the current message ID matches the first unsummarized message ID
+  // The divider appears BEFORE this message (which is the first one after the summarized content)
+  const enableHistoryDivider = !!lastSummarizedMessageId && id === lastSummarizedMessageId;
 
   const userRole = useChatStore((s) => displayMessageSelectors.getDisplayMessageById(id)(s)?.role);
 
