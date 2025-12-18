@@ -144,6 +144,7 @@ export const chatMemory: StateCreator<
         // Pass context (files + previous summaries) to maintain narrative continuity
         params: {
           ...chainIncrementalSummary(contextForBatch || undefined, batchMessages),
+          max_tokens: 8192, // Force long output for comprehensive RPG chronicles (~5000 tokens)
           model,
           provider,
           stream: false,
