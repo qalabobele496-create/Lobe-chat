@@ -219,8 +219,20 @@ export const chatMemory: StateCreator<
     // Get all messages in the current topic
     const messages = chatSelectors.activeBaseChats(get());
 
-    // Trigger the summary with all messages + force reset to ignore stale store state
-    await get().internal_summaryHistory(messages, { forceReset: true });
+    // Get historyCount from agent config (number of messages to keep in context)
+    const agentStoreState = await import('@/store/agent/store').then((m) => m.getAgentStoreState());
+    const historyCount = (await import('@/store/agent/selectors')).agentChatConfigSelectors.historyCount(agentStoreState);
+
+    // Calculate endIndex: leave the last historyCount messages unsummarized
+    // E.g., with 45 messages and historyCount=10: endIndex = 45 - 10 + 1 = 36
+    // This means we summarize M1-M35 (leaving M36-M45 in context)
+    const endIndex = Math.max(0, messages.length - historyCount + 1);
+
+    // Only summarize if there are enough messages
+    if (endIndex <= 0) return;
+
+    // Trigger the summary with messages up to endIndex + force reset
+    await get().internal_summaryHistory(messages.slice(0, endIndex), { forceReset: true });
   },
 });
 
