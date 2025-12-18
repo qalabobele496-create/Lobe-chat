@@ -99,37 +99,56 @@ export const chatMemory: StateCreator<
     // If forceReset is true (Manual Summary), start fresh. Otherwise, use accumulated summary.
     let accumulatedSummary = options?.forceReset ? '' : (topic?.historySummary || '');
 
+    // IMPORTANT: lastSummarizedMessageIndex is a GLOBAL index (counting ALL messages, including attachments)
     const currentLastIndex = options?.forceReset ? 0 : (topic?.metadata?.lastSummarizedMessageIndex ?? 0);
     let summaryCount = options?.forceReset ? 0 : (topic?.metadata?.summarizationCount ?? 0);
 
     const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
 
-    // Separate file messages (permanent context) from compressible messages
-    const fileMessages = messages.filter(hasFileAttachments);
-    const compressibleMessages = messages.filter((m) => !hasFileAttachments(m));
+    // ========================================================================
+    // STEP 1: Extract ALL file attachment CONTENT from ALL messages (permanent context)
+    // The FILE CONTENT is passed integrally to EVERY summarization batch
+    // The MESSAGE TEXT (even from messages with attachments) is still summarized
+    // ========================================================================
+    const allFileMessages = messages.filter(hasFileAttachments);
+    const globalFilesContext = formatFilesContext(allFileMessages);
 
-    // Skip compression if not enough compressible messages
-    if (compressibleMessages.length < BATCH_SIZE) return;
+    // ========================================================================
+    // STEP 2: Get messages to process (all messages after lastSummarizedMessageIndex)
+    // Using GLOBAL index - counts ALL messages
+    // ALL messages are summarized (including those with attachments)
+    // ========================================================================
+    const messagesToProcess = messages.slice(currentLastIndex);
 
-    // Format files as permanent context (never compressed)
-    const filesContext = formatFilesContext(fileMessages);
+    // Skip if not enough messages to create a full batch
+    if (messagesToProcess.length < BATCH_SIZE) return;
 
     // Calculate how many complete batches we can create
-    const totalBatches = Math.floor(compressibleMessages.length / BATCH_SIZE);
+    const totalNewBatches = Math.floor(messagesToProcess.length / BATCH_SIZE);
 
-    if (totalBatches === 0) return;
+    if (totalNewBatches === 0) return;
 
-    // Process each batch sequentially with accumulated context
-    // IMPORTANT: Each batch contains EXACTLY `BATCH_SIZE` messages that have NEVER been summarized before.
-    // The `lastSummarizedMessageIndex` ensures NO overlap - we only process messages[lastIndex:lastIndex+BATCH_SIZE]
-    // The AI prompt is also configured to ONLY summarize the current batch, using previous summaries as READ-ONLY context.
-    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    // ========================================================================
+    // STEP 3: Process each batch sequentially
+    // Each batch = 10 GLOBAL messages
+    // ALL messages in batch are summarized (text content)
+    // Attachment CONTENT is extracted to permanent context
+    // - S1 = compress(M1-M10, context: AllFilesContent)
+    // - S2 = compress(M11-M20, context: AllFilesContent + S1)
+    // - S3 = compress(M21-M30, context: AllFilesContent + S1 + S2)
+    // ========================================================================
+    for (let batchIndex = 0; batchIndex < totalNewBatches; batchIndex++) {
       const startIdx = batchIndex * BATCH_SIZE;
       const endIdx = startIdx + BATCH_SIZE;
-      const batchMessages = compressibleMessages.slice(startIdx, endIdx);
 
-      // Build context: files + previous summaries
-      let contextForBatch = filesContext;
+      // Get the batch - ALL messages will be summarized
+      const batchMessages = messagesToProcess.slice(startIdx, endIdx);
+
+      // Build context for this batch:
+      // 1. All file attachment CONTENT from entire history (permanent context)
+      // 2. All previous summaries (S1, S2, ... accumulated so far)
+      let contextForBatch = globalFilesContext;
+
       if (accumulatedSummary) {
         contextForBatch = contextForBatch
           ? `${contextForBatch}\n\n[PREVIOUS SUMMARIES]\n${accumulatedSummary}`
@@ -141,10 +160,12 @@ export const chatMemory: StateCreator<
         onFinish: async (text) => {
           batchSummary = text;
         },
-        // Pass context (files + previous summaries) to maintain narrative continuity
+        // The AI receives:
+        // - <context>: AllFilesContent + PreviousSummaries (READ-ONLY, do not repeat)
+        // - <chat_history>: ALL messages from this batch (text is summarized)
         params: {
           ...chainIncrementalSummary(contextForBatch || undefined, batchMessages),
-          max_tokens: 8192, // Force long output for comprehensive RPG chronicles (~5000 tokens)
+          max_tokens: 8192,
           model,
           provider,
           stream: false,
@@ -157,15 +178,21 @@ export const chatMemory: StateCreator<
       });
 
       // Append this batch's summary to accumulated summaries
-      accumulatedSummary = accumulatedSummary
-        ? `${accumulatedSummary}${SUMMARY_DELIMITER}${batchSummary}`
-        : batchSummary;
+      // S1 -> S1 + S2 -> S1 + S2 + S3 ...
+      if (batchSummary) {
+        accumulatedSummary = accumulatedSummary
+          ? `${accumulatedSummary}${SUMMARY_DELIMITER}${batchSummary}`
+          : batchSummary;
+      }
 
       summaryCount++;
     }
 
-    // Calculate new last summarized index (based on compressible messages only)
-    const messagesProcessed = totalBatches * BATCH_SIZE;
+    // ========================================================================
+    // STEP 4: Update topic with new summary and metadata
+    // newLastIndex = GLOBAL index (counts ALL messages including attachments)
+    // ========================================================================
+    const messagesProcessed = totalNewBatches * BATCH_SIZE;
     const newLastIndex = currentLastIndex + messagesProcessed;
 
     await get().internal_updateTopic(topicId, {

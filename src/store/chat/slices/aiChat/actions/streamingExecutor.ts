@@ -1072,12 +1072,16 @@ export const streamingExecutor: StateCreator<
       const endIndex = Math.max(0, messages.length - historyCount + 1);
 
       if (endIndex > lastSummarizedIndex) {
-        // Get only the NEW unsummarized messages
+        // Get only the NEW unsummarized messages (for threshold check)
         const unsummarizedMessages = messages.slice(lastSummarizedIndex, endIndex);
 
         // Only compress if we have enough new messages to meet the threshold
         if (unsummarizedMessages.length >= compressThreshold) {
-          await get().internal_summaryHistory(unsummarizedMessages);
+          // IMPORTANT: Pass ALL messages up to endIndex so that file attachments
+          // from ANY position (including M1) are preserved as permanent context.
+          // The internal_summaryHistory function separates file messages from
+          // compressible messages internally.
+          await get().internal_summaryHistory(messages.slice(0, endIndex));
         }
       }
     }

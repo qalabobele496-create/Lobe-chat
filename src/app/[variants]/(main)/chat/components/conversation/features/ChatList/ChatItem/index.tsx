@@ -5,7 +5,7 @@ import { ChatItem } from '@/features/ChatList';
 import { useAgentStore } from '@/store/agent';
 import { agentChatConfigSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
-import { displayMessageSelectors, threadSelectors } from '@/store/chat/selectors';
+import { displayMessageSelectors, threadSelectors, topicSelectors } from '@/store/chat/selectors';
 
 import SupervisorThinkingTag from './OrchestratorThinking';
 import Thread from './Thread';
@@ -51,15 +51,22 @@ export interface ThreadChatItemProps {
 const MainChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
   const { styles, cx } = useStyles();
 
-  const [showThread, historyLength] = useChatStore((s) => [
-    threadSelectors.hasThreadBySourceMsgId(id)(s),
-    displayMessageSelectors.mainDisplayChatIDs(s).length,
-  ]);
+  // Get showThread, historyLength, and lastSummarizedMessageIndex from chat store
+  const [showThread, historyLength, lastSummarizedIndex] = useChatStore((s) => {
+    const topic = topicSelectors.currentActiveTopic(s);
+    return [
+      threadSelectors.hasThreadBySourceMsgId(id)(s),
+      displayMessageSelectors.mainDisplayChatIDs(s).length,
+      topic?.metadata?.lastSummarizedMessageIndex ?? 0,
+    ];
+  });
 
-  const [displayMode, enableHistoryDivider] = useAgentStore((s) => [
-    agentChatConfigSelectors.displayMode(s),
-    agentChatConfigSelectors.enableHistoryDivider(historyLength, index)(s),
-  ]);
+  const displayMode = useAgentStore(agentChatConfigSelectors.displayMode);
+
+  // Show history divider at the first message AFTER the last summarized message
+  // If lastSummarizedIndex is 20, divider should appear before message at index 20 (0-based)
+  // Which corresponds to position 21 (1-based), i.e., the first unsummarized message
+  const enableHistoryDivider = lastSummarizedIndex > 0 && index === lastSummarizedIndex;
 
   const userRole = useChatStore((s) => displayMessageSelectors.getDisplayMessageById(id)(s)?.role);
 

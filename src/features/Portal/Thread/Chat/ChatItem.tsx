@@ -1,10 +1,8 @@
 import React, { memo, useMemo } from 'react';
 
 import { ChatItem } from '@/features/ChatList';
-import { useAgentStore } from '@/store/agent';
-import { agentChatConfigSelectors } from '@/store/agent/selectors';
 import { useChatStore } from '@/store/chat';
-import { threadSelectors } from '@/store/chat/selectors';
+import { threadSelectors, topicSelectors } from '@/store/chat/selectors';
 
 import ThreadDivider from './ThreadDivider';
 
@@ -14,11 +12,15 @@ export interface ThreadChatItemProps {
 }
 
 const ThreadChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
-  const [threadMessageId, threadStartMessageIndex, historyLength] = useChatStore((s) => [
-    threadSelectors.threadSourceMessageId(s),
-    threadSelectors.threadSourceMessageIndex(s),
-    threadSelectors.portalDisplayChatsLength(s),
-  ]);
+  const [threadMessageId, threadStartMessageIndex, historyLength, lastSummarizedIndex] = useChatStore((s) => {
+    const topic = topicSelectors.currentActiveTopic(s);
+    return [
+      threadSelectors.threadSourceMessageId(s),
+      threadSelectors.threadSourceMessageIndex(s),
+      threadSelectors.portalDisplayChatsLength(s),
+      topic?.metadata?.lastSummarizedMessageIndex ?? 0,
+    ];
+  });
 
   const enableThreadDivider = threadMessageId === id;
 
@@ -29,9 +31,8 @@ const ThreadChatItem = memo<ThreadChatItemProps>(({ id, index }) => {
 
   const isParentMessage = index <= threadStartMessageIndex;
 
-  const enableHistoryDivider = useAgentStore(
-    agentChatConfigSelectors.enableHistoryDivider(historyLength, index),
-  );
+  // Show history divider at the first message AFTER the last summarized message
+  const enableHistoryDivider = lastSummarizedIndex > 0 && index === lastSummarizedIndex;
 
   return (
     <ChatItem
