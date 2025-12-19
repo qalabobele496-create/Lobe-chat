@@ -27,6 +27,7 @@ const REQUIRED_SECTIONS = `### REQUIRED SECTIONS — Include ALL. Skip sections 
 - Reactions, opportunity attacks, readied actions
 - Environmental interactions and battlefield hazards
 - Victory/defeat conditions and final outcomes
+- **D&D 5e Specifics**: Saving throws (ability + DC), advantage/disadvantage sources, bonus actions used
 
 #### 🎭 CHARACTER ACTIONS & DECISIONS
 - Individual PC choices with motivations (stated or implied)
@@ -35,6 +36,8 @@ const REQUIRED_SECTIONS = `### REQUIRED SECTIONS — Include ALL. Skip sections 
 - Investigation, Perception, Insight results and what they revealed
 - NPC behaviors, reactions, attitude shifts
 - Roleplay moments that defined character voice
+- **Class Features Used**: Action Surge, Sneak Attack, Divine Smite, Wild Shape, Channel Divinity, etc.
+- **Racial Abilities**: Darkvision usage, breath weapons, innate spellcasting, etc.
 
 #### 💬 MEMORABLE DIALOGUE & QUOTES
 Extract VERBATIM quotes that are:
@@ -72,25 +75,62 @@ Extract VERBATIM quotes that are:
 - Intra-party conflicts or bonding moments
 - Comic relief and levity moments
 
+#### 🎒 INVENTÁRIO DO GRUPO
+**CRITICAL**: Track ALL inventory changes with EXACT quantities and values.
+- **Gold & Currency**: Total party gold, platinum, silver, copper (running total if possible)
+- **Magic Items**: Name, rarity, attunement status, who carries it
+- **Weapons & Armor**: Acquired, lost, or upgraded equipment
+- **Consumables**: Potions (type + quantity), scrolls (spell + level), ammunition count
+- **Quest Items**: Keys, letters, artifacts, MacGuffins — note significance
+- **Mundane Gear**: Rope, torches, rations — only if specifically mentioned as important
+- **Gems & Valuables**: Type, estimated value, who holds them
+- **Loot Distribution**: Who received what after combat/exploration
+
+**FORMAT EXAMPLE**:
+> 🎒 **Inventory Changes This Session**:
+> - +150 gp (split from bandit treasure)
+> - +1 Potion of Healing (Cleric)
+> - +Mysterious Black Key (found in crypt)
+> - -2 arrows (Ranger, combat)
+> - Longsword +1 (Paladin attuned)
+
+#### 👥 NPCs CONHECIDOS
+**CRITICAL**: Maintain a living record of ALL NPCs encountered.
+- **Name**: Full name or alias used
+- **Race/Appearance**: Brief physical description
+- **Role/Occupation**: What they do, their position
+- **Location**: Where the party met/left them
+- **Disposition**: Friendly/Neutral/Hostile toward the party
+- **Relationship to Party**: Ally, enemy, patron, merchant, quest-giver, etc.
+- **Key Information**: What they know, what they want, secrets revealed
+- **Status**: Alive, dead, missing, captured, etc.
+
+**FORMAT EXAMPLE**:
+> 👥 **NPCs This Session**:
+> - **Mira Thornwood** (Human, F) — Innkeeper at The Rusty Nail, Friendly. Gave quest to clear cellar of rats. Alive, Millbrook.
+> - **Lord Vance** (Half-elf, M) — Noble, patron. Neutral→Friendly after party saved his daughter. Owes party a favor.
+> - **Skrag** (Orc, M) — Bandit leader. Hostile. KILLED in combat. Had map to hidden cache.
+
 #### 📊 MECHANICAL OUTCOMES
 - HP changes: current/max for each character when mentioned
 - Death saves made/failed, unconscious states
-- Items: acquired, lost, used, destroyed, or modified
 - Resources expended: spell slots (by level), class features, consumables
 - Ammunition, components, charges consumed
 - Status conditions: gained/removed (with duration if known)
 - Exhaustion level changes
 - Rests taken: short (hit dice used) or long (resources recovered)
-- Attunement changes
+- Attunement changes (max 3 per character)
 - XP gained, level-ups, milestone progression
-- Gold, gems, art objects, treasure obtained (with values)
 - Inspiration granted or spent
+- **Spell Preparation Changes**: New spells prepared after long rest
+- **Hit Dice**: Current/max for each character after rests
 
 #### 🕐 SESSION TIMELINE
 - In-game time progression (dawn → midday → dusk → midnight)
 - Travel distances and durations
 - Rest periods and downtime activities
 - Time-sensitive events or countdowns mentioned
+- **Calendar Date**: If mentioned, track in-game date
 
 #### 🔮 OPEN THREADS & HOOKS
 - Unresolved mysteries or questions raised
@@ -98,7 +138,8 @@ Extract VERBATIM quotes that are:
 - NPCs left in specific states (alive, captured, fleeing, etc.)
 - Quests accepted, updated, or abandoned
 - Cliffhangers or pending decisions
-- Leads or locations mentioned for future exploration`;
+- Leads or locations mentioned for future exploration
+- **Faction Relations**: Standing with guilds, kingdoms, organizations`;
 
 const WRITING_STYLE = `### WRITING STYLE — APEX QUALITY STANDARDS:
 - **Tense**: Use PAST TENSE consistently for narrative flow

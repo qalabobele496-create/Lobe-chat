@@ -1,9 +1,9 @@
 import { chainIncrementalSummary } from '@lobechat/prompts';
 import { TraceNameMap, UIChatMessage } from '@lobechat/types';
+import { message } from 'antd';
 import { StateCreator } from 'zustand/vanilla';
 
 import { chatService } from '@/services/chat';
-import { topicService } from '@/services/topic';
 import { ChatStore } from '@/store/chat';
 import { useUserStore } from '@/store/user';
 import { systemAgentSelectors } from '@/store/user/selectors';
@@ -17,6 +17,45 @@ const SUMMARY_DELIMITER = '\n\n<!-- SUMMARY_BREAK -->\n\n';
 
 // Number of messages per compression batch
 const BATCH_SIZE = 10;
+
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
+/**
+ * Helper function to delay execution
+ */
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Helper function to execute with retry logic
+ */
+const withRetry = async <T>(
+  fn: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+  initialDelayMs: number = RETRY_DELAY_MS,
+): Promise<T> => {
+  let lastError: Error | undefined;
+  let currentDelay = initialDelayMs;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`[memory.ts] Attempt ${attempt}/${maxRetries} failed:`, error);
+      
+      if (attempt < maxRetries) {
+        console.log(`[memory.ts] Retrying in ${currentDelay}ms...`);
+        await delay(currentDelay);
+        // Exponential backoff
+        currentDelay *= 2;
+      }
+    }
+  }
+  
+  throw lastError;
+};
 
 /**
  * Check if a message contains file attachments
@@ -138,8 +177,15 @@ export const chatMemory: StateCreator<
 
     if (totalNewBatches === 0) return;
 
+    // Show toast notification when starting summarization
+    message.loading({
+      content: `Comprimindo histórico: 0/${totalNewBatches} batches...`,
+      duration: 0,
+      key: 'history-summary',
+    });
+
     // ========================================================================
-    // STEP 3: Process each batch sequentially
+    // STEP 3: Process each batch sequentially with retry logic
     // Each batch = 10 GLOBAL messages
     // ALL messages in batch are summarized (text content)
     // Attachment CONTENT is extracted to permanent context
@@ -147,55 +193,84 @@ export const chatMemory: StateCreator<
     // - S2 = compress(M11-M20, context: AllFilesContent + S1)
     // - S3 = compress(M21-M30, context: AllFilesContent + S1 + S2)
     // ========================================================================
-    for (let batchIndex = 0; batchIndex < totalNewBatches; batchIndex++) {
-      const startIdx = batchIndex * BATCH_SIZE;
-      const endIdx = startIdx + BATCH_SIZE;
+    try {
+      for (let batchIndex = 0; batchIndex < totalNewBatches; batchIndex++) {
+        const startIdx = batchIndex * BATCH_SIZE;
+        const endIdx = startIdx + BATCH_SIZE;
 
-      // Get the batch - ALL messages will be summarized
-      const batchMessages = messagesToProcess.slice(startIdx, endIdx);
+        // Get the batch - ALL messages will be summarized
+        const batchMessages = messagesToProcess.slice(startIdx, endIdx);
 
-      // Build context for this batch:
-      // 1. All file attachment CONTENT from entire history (permanent context)
-      // 2. All previous summaries (S1, S2, ... accumulated so far)
-      let contextForBatch = globalFilesContext;
+        // Build context for this batch:
+        // 1. All file attachment CONTENT from entire history (permanent context)
+        // 2. All previous summaries (S1, S2, ... accumulated so far)
+        let contextForBatch = globalFilesContext;
 
-      if (accumulatedSummary) {
-        contextForBatch = contextForBatch
-          ? `${contextForBatch}\n\n[PREVIOUS SUMMARIES]\n${accumulatedSummary}`
-          : `[PREVIOUS SUMMARIES]\n${accumulatedSummary}`;
+        if (accumulatedSummary) {
+          contextForBatch = contextForBatch
+            ? `${contextForBatch}\n\n[PREVIOUS SUMMARIES]\n${accumulatedSummary}`
+            : `[PREVIOUS SUMMARIES]\n${accumulatedSummary}`;
+        }
+
+        // Update progress toast
+        message.loading({
+          content: `Comprimindo histórico: ${batchIndex + 1}/${totalNewBatches} batches...`,
+          duration: 0,
+          key: 'history-summary',
+        });
+
+        // Use retry logic for each batch
+        // batchSummary is reset inside withRetry to avoid stale values from failed attempts
+        const batchSummary = await withRetry(async () => {
+          let result = '';
+          await chatService.fetchPresetTaskResult({
+            onFinish: async (text) => {
+              result = text;
+            },
+            // The AI receives:
+            // - <context>: AllFilesContent + PreviousSummaries (READ-ONLY, do not repeat)
+            // - <chat_history>: ALL messages from this batch (text is summarized)
+            params: {
+              ...chainIncrementalSummary(contextForBatch || undefined, batchMessages),
+              max_tokens: 8192,
+              model,
+              provider,
+              stream: false,
+            },
+            trace: {
+              sessionId: get().activeId,
+              topicId: get().activeTopicId,
+              traceName: TraceNameMap.SummaryHistoryMessages,
+            },
+          });
+          
+          // Validate that we got a response
+          if (!result || result.trim().length === 0) {
+            throw new Error('Empty summary response received');
+          }
+          
+          return result;
+        });
+
+        // Append this batch's summary to accumulated summaries
+        // S1 -> S1 + S2 -> S1 + S2 + S3 ...
+        if (batchSummary) {
+          accumulatedSummary = accumulatedSummary
+            ? `${accumulatedSummary}${SUMMARY_DELIMITER}${batchSummary}`
+            : batchSummary;
+        }
+
+        summaryCount++;
       }
-
-      let batchSummary = '';
-      await chatService.fetchPresetTaskResult({
-        onFinish: async (text) => {
-          batchSummary = text;
-        },
-        // The AI receives:
-        // - <context>: AllFilesContent + PreviousSummaries (READ-ONLY, do not repeat)
-        // - <chat_history>: ALL messages from this batch (text is summarized)
-        params: {
-          ...chainIncrementalSummary(contextForBatch || undefined, batchMessages),
-          max_tokens: 8192,
-          model,
-          provider,
-          stream: false,
-        },
-        trace: {
-          sessionId: get().activeId,
-          topicId: get().activeTopicId,
-          traceName: TraceNameMap.SummaryHistoryMessages,
-        },
+    } catch (error) {
+      // Show error toast and rethrow
+      message.error({
+        content: 'Erro ao comprimir histórico. Tente novamente.',
+        duration: 5,
+        key: 'history-summary',
       });
-
-      // Append this batch's summary to accumulated summaries
-      // S1 -> S1 + S2 -> S1 + S2 + S3 ...
-      if (batchSummary) {
-        accumulatedSummary = accumulatedSummary
-          ? `${accumulatedSummary}${SUMMARY_DELIMITER}${batchSummary}`
-          : batchSummary;
-      }
-
-      summaryCount++;
+      console.error('[memory.ts] Failed to summarize history after retries:', error);
+      throw error;
     }
 
     // ========================================================================
@@ -219,6 +294,13 @@ export const chatMemory: StateCreator<
         lastSummarizedMessageId: firstUnsummarizedMessageId,
         summarizationCount: summaryCount,
       },
+    });
+
+    // Show success toast
+    message.success({
+      content: `Histórico comprimido com sucesso! ${totalNewBatches} batch(es) processado(s).`,
+      duration: 3,
+      key: 'history-summary',
     });
 
     await get().refreshMessages();
