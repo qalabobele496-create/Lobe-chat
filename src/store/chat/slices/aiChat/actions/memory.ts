@@ -25,7 +25,9 @@ const RETRY_DELAY_MS = 2000;
 /**
  * Helper function to delay execution
  */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
 
 /**
  * Helper function to execute with retry logic
