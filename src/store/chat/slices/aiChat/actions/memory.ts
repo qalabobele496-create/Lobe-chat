@@ -130,11 +130,10 @@ export const chatMemory: StateCreator<
       currentBlockCount = expectedBlocks;
     }
 
-    console.log(`[memory.ts] Starting summarization: currentBlockCount=${currentBlockCount}, expectedBlocks=${expectedBlocks}, totalMessages=${filteredMessages.length}`);
+    console.log(`[memory.ts] Starting summarization: currentBlockCount=${currentBlockCount}, expectedBlocks=${expectedBlocks}, totalMessages=${filteredMessages.length}, model=${model}, provider=${provider}`);
 
     if (currentBlockCount >= expectedBlocks) return;
 
-    const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
     const agentConfig = agentSelectors.currentAgentConfig(getAgentStoreState());
     const systemRole = agentConfig.systemRole;
 
@@ -200,19 +199,28 @@ export const chatMemory: StateCreator<
               }
             }
 
-            console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Fetching result from LLM...`);
+            const inputTokens = await encodeAsync(JSON.stringify(payload.messages));
+            console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Input tokens approx = ${inputTokens}. Fetching result (stream=true)...`);
+
             await chatService.fetchPresetTaskResult({
               abortController,
+              onMessageHandle: (chunk) => {
+                result += chunk;
+                if (result.length % 2000 < chunk.length) {
+                  console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Progress... ${result.length} chars`);
+                }
+              },
               onFinish: async (text) => {
-                result = text;
-                console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: LLM finished. Received ${text.length} chars.`);
+                // Ensure we use the full text from onFinish if available, otherwise use accumulated result
+                result = text || result;
+                console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: LLM finished. Received ${result.length} chars.`);
               },
               params: {
                 ...payload,
                 max_tokens: 8192,
                 model,
                 provider,
-                stream: false,
+                stream: true,
               },
               trace: {
                 sessionId: get().activeId,
@@ -222,7 +230,7 @@ export const chatMemory: StateCreator<
             });
 
             if (!result || result.trim().length === 0) {
-              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Empty result received.`);
+              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Empty result received. Full result variable state:`, { resultLength: result?.length });
               throw new Error('Resposta do arquivista vazia.');
             }
 
@@ -230,14 +238,14 @@ export const chatMemory: StateCreator<
             console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Token count = ${tokenCount} (Min required: ${MIN_TOKEN_DENSITY})`);
             
             if (tokenCount < MIN_TOKEN_DENSITY && attempt < MAX_RETRIES) {
-              console.warn(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Low density (${tokenCount} tokens). Retrying...`);
+              console.warn(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Low density (${tokenCount} tokens). Retrying with reinforcement...`);
               throw new Error('Densidade insuficiente');
             }
 
             return { content: result, tokens: tokenCount };
           } catch (e: any) {
             if (e.name === 'AbortError') {
-              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Request aborted (Timeout).`);
+              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Request aborted (Timeout or Manual).`);
             } else {
               console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Error during fetch:`, e);
             }
