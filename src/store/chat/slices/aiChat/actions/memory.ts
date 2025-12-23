@@ -58,14 +58,25 @@ const formatFilesContext = (messages: UIChatMessage[]): string => {
   const fileMessages = messages.filter(hasFileAttachments);
   if (fileMessages.length === 0) return '';
 
-  return fileMessages
-    .map((msg) => {
-      const files = msg.fileList!
-        .map((f) => `[File: ${f.name}]\n${f.content || '(content not available)'}`)
-        .join('\n\n');
-      return `${msg.content}\n\n${files}`;
-    })
-    .join('\n\n');
+  const seenFiles = new Set<string>();
+  const contextParts: string[] = [];
+
+  for (const msg of fileMessages) {
+    const files = msg.fileList!
+      .filter((f) => {
+        if (seenFiles.has(f.id)) return false;
+        seenFiles.add(f.id);
+        return true;
+      })
+      .map((f) => `[File: ${f.name}]\n${f.content || '(content not available)'}`)
+      .join('\n\n');
+    
+    if (files) {
+      contextParts.push(`Context from message: ${msg.content}\n\n${files}`);
+    }
+  }
+
+  return contextParts.join('\n\n');
 };
 
 export interface ChatMemoryAction {
@@ -219,7 +230,11 @@ export const chatMemory: StateCreator<
                   // Ensure we use the full text from onFinish if available, otherwise use accumulated result
                   result = text || result;
                   console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: LLM finished. Received ${result.length} chars.`);
-                  resolve();
+                  if (!result || result.trim().length === 0) {
+                    reject(new Error('Resposta do arquivista vazia no onFinish.'));
+                  } else {
+                    resolve();
+                  }
                 },
                 onError: (e) => {
                   console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Stream error:`, e);
