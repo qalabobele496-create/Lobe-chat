@@ -130,6 +130,8 @@ export const chatMemory: StateCreator<
       currentBlockCount = expectedBlocks;
     }
 
+    console.log(`[memory.ts] Starting summarization: currentBlockCount=${currentBlockCount}, expectedBlocks=${expectedBlocks}, totalMessages=${filteredMessages.length}`);
+
     if (currentBlockCount >= expectedBlocks) return;
 
     const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
@@ -159,6 +161,8 @@ export const chatMemory: StateCreator<
         const batchMessages = filteredMessages.slice(startIdx, endIdx);
         const nextMessageId = filteredMessages[endIdx]?.id;
 
+        console.log(`[memory.ts] Processing block ${b + 1}/${expectedBlocks}: startIdx=${startIdx}, endIdx=${endIdx}, batchSize=${batchMessages.length}`);
+
         let previousSummariesText = '';
         for (let i = 1; i < existingBlocks.length; i += 2) {
           previousSummariesText += (previousSummariesText ? '\n\n' : '') + existingBlocks[i];
@@ -171,9 +175,13 @@ export const chatMemory: StateCreator<
         });
 
         const batchSummary = await withRetry(async (attempt) => {
+          console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}/${MAX_RETRIES} starting...`);
           let result = '';
           const abortController = new AbortController();
-          const timeoutId = setTimeout(() => abortController.abort(), SUMMARIZATION_TIMEOUT);
+          const timeoutId = setTimeout(() => {
+            console.warn(`[memory.ts] Block ${b + 1} Attempt ${attempt} TIMEOUT after ${SUMMARIZATION_TIMEOUT}ms`);
+            abortController.abort();
+          }, SUMMARIZATION_TIMEOUT);
 
           try {
             const payload = chainIncrementalSummary(
@@ -184,6 +192,7 @@ export const chatMemory: StateCreator<
             );
 
             if (attempt > 1 && payload.messages && payload.messages.length > 0) {
+              console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Applying reinforcement prompt.`);
               const lastMsg = payload.messages[payload.messages.length - 1];
               if (lastMsg && typeof lastMsg.content === 'string') {
                 lastMsg.content +=
@@ -191,10 +200,12 @@ export const chatMemory: StateCreator<
               }
             }
 
+            console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Fetching result from LLM...`);
             await chatService.fetchPresetTaskResult({
               abortController,
               onFinish: async (text) => {
                 result = text;
+                console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: LLM finished. Received ${text.length} chars.`);
               },
               params: {
                 ...payload,
@@ -211,16 +222,26 @@ export const chatMemory: StateCreator<
             });
 
             if (!result || result.trim().length === 0) {
+              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Empty result received.`);
               throw new Error('Resposta do arquivista vazia.');
             }
 
             const tokenCount = await encodeAsync(result);
+            console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Token count = ${tokenCount} (Min required: ${MIN_TOKEN_DENSITY})`);
+            
             if (tokenCount < MIN_TOKEN_DENSITY && attempt < MAX_RETRIES) {
-              console.warn(`[memory.ts] Densidade baixa (${tokenCount} tokens). Tentando reforço...`);
+              console.warn(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Low density (${tokenCount} tokens). Retrying...`);
               throw new Error('Densidade insuficiente');
             }
 
             return { content: result, tokens: tokenCount };
+          } catch (e: any) {
+            if (e.name === 'AbortError') {
+              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Request aborted (Timeout).`);
+            } else {
+              console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Error during fetch:`, e);
+            }
+            throw e;
           } finally {
             clearTimeout(timeoutId);
           }
@@ -248,14 +269,15 @@ export const chatMemory: StateCreator<
             summarizationCount: b + 1,
           },
         });
+        console.log(`[memory.ts] Block ${b + 1} saved successfully.`);
       }
     } catch (error) {
+      console.error('[memory.ts] CRITICAL ERROR in internal_summaryHistory:', error);
       message.error({
         content: 'Erro ao arquivar crônicas. A linearidade foi preservada.',
         duration: 5,
         key: 'history-summary',
       });
-      console.error('[memory.ts] Failed to summarize history:', error);
       throw error;
     }
 
