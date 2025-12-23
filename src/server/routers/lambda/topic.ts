@@ -146,15 +146,24 @@ export const topicRouter = router({
         value: z.object({
           favorite: z.boolean().optional(),
           historySummary: z.string().optional(),
-          messages: z.array(z.string()).optional(),
           metadata: z
             .object({
               lastSummarizedMessageId: z.string().optional(),
               model: z.string().optional(),
               provider: z.string().optional(),
               summarizationCount: z.number().optional(),
-              userMemoryExtractRunState: z.any().optional(),
-              userMemoryExtractStatus: z.string().optional(),
+              userMemoryExtractRunState: z
+                .object({
+                  error: z.string().optional(),
+                  lastConversationDigest: z.string().optional(),
+                  lastMessageAt: z.string().optional(),
+                  lastRunAt: z.string().optional(),
+                  messageCount: z.number().optional(),
+                  processedMemoryCount: z.number().optional(),
+                  version: z.string().optional(),
+                })
+                .optional(),
+              userMemoryExtractStatus: z.enum(['pending', 'completed', 'failed']).optional(),
             })
             .optional(),
           sessionId: z.string().optional(),
