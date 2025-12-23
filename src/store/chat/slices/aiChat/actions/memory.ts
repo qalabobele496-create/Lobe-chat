@@ -130,6 +130,8 @@ export const chatMemory: StateCreator<
       currentBlockCount = expectedBlocks;
     }
 
+    const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
+
     console.log(`[memory.ts] Starting summarization: currentBlockCount=${currentBlockCount}, expectedBlocks=${expectedBlocks}, totalMessages=${filteredMessages.length}, model=${model}, provider=${provider}`);
 
     if (currentBlockCount >= expectedBlocks) return;
@@ -236,7 +238,7 @@ export const chatMemory: StateCreator<
 
             const tokenCount = await encodeAsync(result);
             console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Token count = ${tokenCount} (Min required: ${MIN_TOKEN_DENSITY})`);
-            
+
             if (tokenCount < MIN_TOKEN_DENSITY && attempt < MAX_RETRIES) {
               console.warn(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Low density (${tokenCount} tokens). Retrying with reinforcement...`);
               throw new Error('Densidade insuficiente');
