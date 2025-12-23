@@ -14,8 +14,8 @@ import { topicSelectors } from '@/store/chat/selectors';
 import HistoryDivider from './HistoryDivider';
 
 // Same delimiter used in memory.ts for separating summaries
-// Using a unique delimiter that won't appear in normal markdown content
-const SUMMARY_DELIMITER = '\n\n<!-- SUMMARY_BREAK -->\n\n';
+// Using Unit Separator (invisible control character) for robust parsing
+const SUMMARY_DELIMITER = '\u001f';
 
 const useStyles = createStyles(({ css, token }) => ({
   container: css`
@@ -57,9 +57,25 @@ const History = memo(() => {
   );
 
   // Split content into individual summaries (S1, S2, S3...)
+  // New format: [JSON_METADATA]\u001f[CONTENT]\u001f...
   const summaries = useMemo(() => {
     if (!content) return [];
-    return content.split(SUMMARY_DELIMITER).filter((s) => s.trim().length > 0);
+    const parts = content.split(SUMMARY_DELIMITER).filter((s) => s.trim().length > 0);
+    const blocks: { metadata: any; content: string }[] = [];
+
+    for (let i = 0; i < parts.length; i += 2) {
+      try {
+        // Try to parse metadata
+        const metadata = JSON.parse(parts[i]);
+        const text = parts[i + 1] || '';
+        blocks.push({ metadata, content: text });
+      } catch {
+        // Fallback for old format or plain text
+        blocks.push({ metadata: { id: blocks.length + 1 }, content: parts[i] });
+        i--; // Adjust index to treat next part as potential metadata
+      }
+    }
+    return blocks;
   }, [content]);
 
   return (
@@ -81,11 +97,18 @@ const History = memo(() => {
           {/* Render each summary as a separate card */}
           {summaries.map((summary, index) => (
             <Flexbox key={index} className={styles.summaryCard} gap={4}>
-              <Text className={styles.summaryLabel}>
-                S{index + 1}
-              </Text>
+              <Flexbox horizontal justify={'space-between'}>
+                <Text className={styles.summaryLabel}>
+                  S{summary.metadata.id || index + 1}
+                </Text>
+                {summary.metadata.tokens && (
+                  <Text type={'secondary'} style={{ fontSize: 10 }}>
+                    {summary.metadata.tokens} tokens
+                  </Text>
+                )}
+              </Flexbox>
               <Markdown className={styles.content} variant={'chat'}>
-                {summary}
+                {summary.content}
               </Markdown>
             </Flexbox>
           ))}

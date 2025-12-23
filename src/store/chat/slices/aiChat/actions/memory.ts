@@ -1,74 +1,58 @@
 import { chainIncrementalSummary } from '@lobechat/prompts';
 import { TraceNameMap, UIChatMessage } from '@lobechat/types';
-import { message } from 'antd';
+import { encodeAsync } from '@lobechat/utils';
 import { StateCreator } from 'zustand/vanilla';
 
+import { message } from '@/components/AntdStaticMethods';
 import { chatService } from '@/services/chat';
 import { ChatStore } from '@/store/chat';
 import { useUserStore } from '@/store/user';
+import { agentSelectors } from '@/store/agent/selectors';
+import { getAgentStoreState } from '@/store/agent/store';
 import { systemAgentSelectors } from '@/store/user/selectors';
 
 import { topicSelectors } from '../../../selectors';
 import { chatSelectors } from '../../../selectors';
 
-// Delimiter used to separate individual summaries in the accumulated history
-// Using a unique delimiter that won't appear in normal markdown content
-const SUMMARY_DELIMITER = '\n\n<!-- SUMMARY_BREAK -->\n\n';
+const SUMMARY_DELIMITER = '\u001f';
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 10000;
+const MIN_TOKEN_DENSITY = 4500;
 
-// Number of messages per compression batch
-const BATCH_SIZE = 10;
-
-// Retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 2000;
-
-/**
- * Helper function to delay execution
- */
 const delay = (ms: number) => new Promise((resolve) => {
   setTimeout(resolve, ms);
 });
 
-/**
- * Helper function to execute with retry logic
- */
 const withRetry = async <T>(
-  fn: () => Promise<T>,
+  fn: (attempt: number) => Promise<T>,
   maxRetries: number = MAX_RETRIES,
   initialDelayMs: number = RETRY_DELAY_MS,
 ): Promise<T> => {
   let lastError: Error | undefined;
   let currentDelay = initialDelayMs;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      return await fn();
+      return await fn(attempt);
     } catch (error) {
       lastError = error as Error;
       console.warn(`[memory.ts] Attempt ${attempt}/${maxRetries} failed:`, error);
-      
+
       if (attempt < maxRetries) {
         console.log(`[memory.ts] Retrying in ${currentDelay}ms...`);
         await delay(currentDelay);
-        // Exponential backoff
         currentDelay *= 2;
       }
     }
   }
-  
+
   throw lastError;
 };
 
-/**
- * Check if a message contains file attachments
- */
 const hasFileAttachments = (message: UIChatMessage): boolean => {
   return !!(message.fileList && message.fileList.length > 0);
 };
 
-/**
- * Format file messages as context string for the AI
- */
 const formatFilesContext = (messages: UIChatMessage[]): string => {
   const fileMessages = messages.filter(hasFileAttachments);
   if (fileMessages.length === 0) return '';
@@ -84,29 +68,8 @@ const formatFilesContext = (messages: UIChatMessage[]): string => {
 };
 
 export interface ChatMemoryAction {
-  /**
-   * Clear the history summary for the current topic.
-   * Resets historySummary and all related metadata.
-   */
   clearHistorySummary: () => Promise<void>;
-  /**
-   * Incrementally summarize history messages in batches with contextual awareness.
-   * Each batch uses previous summaries + file attachments as context.
-   * Files are NEVER compressed but passed as permanent context.
-   *
-   * Flow:
-   * - S1 = compress(M2-M11, context: M1-files)
-   * - S2 = compress(M12-M21, context: M1-files + S1)
-   * - S3 = compress(M22-M31, context: M1-files + S1 + S2)
-   *
-   * @param messages - All messages to process (including file messages)
-   * @param options - Optional configuration (e.g., forceReset for manual summary)
-   */
   internal_summaryHistory: (messages: UIChatMessage[], options?: { forceReset?: boolean }) => Promise<void>;
-  /**
-   * Manually trigger a full summary of all messages in the current topic.
-   * Clears existing summary and creates a new one from scratch.
-   */
   triggerManualSummary: () => Promise<void>;
 }
 
@@ -134,106 +97,99 @@ export const chatMemory: StateCreator<
     const topicId = get().activeTopicId;
     if (!topicId) return;
 
-    // Get current topic to access previous summaries and metadata
     const topic = topicSelectors.currentActiveTopic(get());
-
-    // If forceReset is true (Manual Summary), start fresh. Otherwise, use accumulated summary.
     let accumulatedSummary = options?.forceReset ? '' : (topic?.historySummary || '');
 
-    // Calculate the currentLastIndex from the stored message ID
-    // This is the index of the first unsummarized message
-    let currentLastIndex = 0;
-    if (!options?.forceReset) {
-      const lastSummarizedMessageId = topic?.metadata?.lastSummarizedMessageId as string | undefined;
-      if (lastSummarizedMessageId) {
-        const messageIndex = messages.findIndex((m) => m.id === lastSummarizedMessageId);
-        if (messageIndex !== -1) {
-          currentLastIndex = messageIndex;
-        }
+    const filteredMessages = messages.filter((m) => m.role !== 'system' && m.role !== 'tool');
+
+    if (filteredMessages.length < 21) {
+      if (accumulatedSummary && !options?.forceReset) {
+        await get().internal_updateTopic(topicId, {
+          historySummary: '',
+          metadata: { ...topic?.metadata, lastSummarizedMessageId: undefined, summarizationCount: 0 },
+        });
       }
+      return;
     }
-    let summaryCount = options?.forceReset ? 0 : (topic?.metadata?.summarizationCount ?? 0);
+
+    const totalSummarizableMessages = filteredMessages.length - 1;
+    const expectedBlocks = totalSummarizableMessages >= 20
+      ? 1 + Math.floor((totalSummarizableMessages - 20) / 10)
+      : 0;
+
+    const existingBlocks = accumulatedSummary.split(SUMMARY_DELIMITER).filter(Boolean);
+    let currentBlockCount = 0;
+    for (let i = 0; i < existingBlocks.length; i += 2) {
+      if (existingBlocks[i].startsWith('{')) currentBlockCount++;
+    }
+
+    if (currentBlockCount > expectedBlocks) {
+      const newBlocks = existingBlocks.slice(0, expectedBlocks * 2);
+      accumulatedSummary = newBlocks.join(SUMMARY_DELIMITER);
+      currentBlockCount = expectedBlocks;
+    }
+
+    if (currentBlockCount >= expectedBlocks) return;
 
     const { model, provider } = systemAgentSelectors.historyCompress(useUserStore.getState());
+    const agentConfig = agentSelectors.currentAgentConfig(getAgentStoreState());
+    const systemRole = agentConfig.systemRole;
 
-    // ========================================================================
-    // STEP 1: Extract ALL file attachment CONTENT from ALL messages (permanent context)
-    // The FILE CONTENT is passed integrally to EVERY summarization batch
-    // The MESSAGE TEXT (even from messages with attachments) is still summarized
-    // ========================================================================
     const allFileMessages = messages.filter(hasFileAttachments);
     const globalFilesContext = formatFilesContext(allFileMessages);
 
-    // ========================================================================
-    // STEP 2: Get messages to process (all messages after currentLastIndex)
-    // Using GLOBAL index - counts ALL messages
-    // ALL messages are summarized (including those with attachments)
-    // ========================================================================
-    const messagesToProcess = messages.slice(currentLastIndex);
-
-    // Skip if not enough messages to create a full batch
-    if (messagesToProcess.length < BATCH_SIZE) return;
-
-    // Calculate how many complete batches we can create
-    const totalNewBatches = Math.floor(messagesToProcess.length / BATCH_SIZE);
-
-    if (totalNewBatches === 0) return;
-
-    // Show toast notification when starting summarization
     message.loading({
-      content: `Comprimindo histórico: 0/${totalNewBatches} batches...`,
+      content: `Arquivando crônicas: ${currentBlockCount}/${expectedBlocks} blocos...`,
       duration: 0,
       key: 'history-summary',
     });
 
-    // ========================================================================
-    // STEP 3: Process each batch sequentially with retry logic
-    // Each batch = 10 GLOBAL messages
-    // ALL messages in batch are summarized (text content)
-    // Attachment CONTENT is extracted to permanent context
-    // - S1 = compress(M1-M10, context: AllFilesContent)
-    // - S2 = compress(M11-M20, context: AllFilesContent + S1)
-    // - S3 = compress(M21-M30, context: AllFilesContent + S1 + S2)
-    // ========================================================================
     try {
-      for (let batchIndex = 0; batchIndex < totalNewBatches; batchIndex++) {
-        const startIdx = batchIndex * BATCH_SIZE;
-        const endIdx = startIdx + BATCH_SIZE;
-
-        // Get the batch - ALL messages will be summarized
-        const batchMessages = messagesToProcess.slice(startIdx, endIdx);
-
-        // Build context for this batch:
-        // 1. All file attachment CONTENT from entire history (permanent context)
-        // 2. All previous summaries (S1, S2, ... accumulated so far)
-        let contextForBatch = globalFilesContext;
-
-        if (accumulatedSummary) {
-          contextForBatch = contextForBatch
-            ? `${contextForBatch}\n\n[PREVIOUS SUMMARIES]\n${accumulatedSummary}`
-            : `[PREVIOUS SUMMARIES]\n${accumulatedSummary}`;
+      for (let b = currentBlockCount; b < expectedBlocks; b++) {
+        let startIdx, endIdx;
+        if (b === 0) {
+          startIdx = 0;
+          endIdx = 20;
+        } else {
+          startIdx = 20 + (b - 1) * 10;
+          endIdx = startIdx + 10;
         }
 
-        // Update progress toast
+        const batchMessages = filteredMessages.slice(startIdx, endIdx);
+        const nextMessageId = filteredMessages[endIdx]?.id;
+
+        let previousSummariesText = '';
+        for (let i = 1; i < existingBlocks.length; i += 2) {
+          previousSummariesText += (previousSummariesText ? '\n\n' : '') + existingBlocks[i];
+        }
+
         message.loading({
-          content: `Comprimindo histórico: ${batchIndex + 1}/${totalNewBatches} batches...`,
+          content: `Arquivando crônicas: ${b + 1}/${expectedBlocks} blocos...`,
           duration: 0,
           key: 'history-summary',
         });
 
-        // Use retry logic for each batch
-        // batchSummary is reset inside withRetry to avoid stale values from failed attempts
-        const batchSummary = await withRetry(async () => {
+        const batchSummary = await withRetry(async (attempt) => {
           let result = '';
+
+          const payload = chainIncrementalSummary(
+            previousSummariesText || undefined,
+            batchMessages,
+            systemRole,
+            globalFilesContext
+          );
+
+          if (attempt > 1 && payload.messages && payload.messages.length > 0) {
+            const lastMsg = payload.messages[payload.messages.length - 1];
+            lastMsg.content += "\n\n⚠️ REINFORCEMENT: Your previous attempt was too short. You MUST expand your output to at least 5000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING.";
+          }
+
           await chatService.fetchPresetTaskResult({
             onFinish: async (text) => {
               result = text;
             },
-            // The AI receives:
-            // - <context>: AllFilesContent + PreviousSummaries (READ-ONLY, do not repeat)
-            // - <chat_history>: ALL messages from this batch (text is summarized)
             params: {
-              ...chainIncrementalSummary(contextForBatch || undefined, batchMessages),
+              ...payload,
               max_tokens: 8192,
               model,
               provider,
@@ -245,62 +201,55 @@ export const chatMemory: StateCreator<
               traceName: TraceNameMap.SummaryHistoryMessages,
             },
           });
-          
-          // Validate that we got a response
+
           if (!result || result.trim().length === 0) {
-            throw new Error('Empty summary response received');
+            throw new Error('Resposta do arquivista vazia.');
           }
-          
-          return result;
+
+          const tokenCount = await encodeAsync(result);
+          if (tokenCount < MIN_TOKEN_DENSITY && attempt < MAX_RETRIES) {
+            console.warn(`[memory.ts] Densidade baixa (${tokenCount} tokens). Tentando reforço...`);
+            throw new Error('Densidade insuficiente');
+          }
+
+          return { content: result, tokens: tokenCount };
         });
 
-        // Append this batch's summary to accumulated summaries
-        // S1 -> S1 + S2 -> S1 + S2 + S3 ...
-        if (batchSummary) {
-          accumulatedSummary = accumulatedSummary
-            ? `${accumulatedSummary}${SUMMARY_DELIMITER}${batchSummary}`
-            : batchSummary;
-        }
+        const metadata = {
+          id: b + 1,
+          model,
+          timestamp: Date.now(),
+          tokens: batchSummary.tokens,
+        };
 
-        summaryCount++;
+        const blockStr = `${JSON.stringify(metadata)}${SUMMARY_DELIMITER}${batchSummary.content}`;
+        accumulatedSummary = accumulatedSummary
+          ? `${accumulatedSummary}${SUMMARY_DELIMITER}${blockStr}`
+          : blockStr;
+
+        existingBlocks.push(JSON.stringify(metadata), batchSummary.content);
+
+        await get().internal_updateTopic(topicId, {
+          historySummary: accumulatedSummary,
+          metadata: {
+            ...topic?.metadata,
+            lastSummarizedMessageId: nextMessageId,
+            summarizationCount: b + 1,
+          },
+        });
       }
     } catch (error) {
-      // Show error toast and rethrow
       message.error({
-        content: 'Erro ao comprimir histórico. Tente novamente.',
+        content: 'Erro ao arquivar crônicas. A linearidade foi preservada.',
         duration: 5,
         key: 'history-summary',
       });
-      console.error('[memory.ts] Failed to summarize history after retries:', error);
+      console.error('[memory.ts] Failed to summarize history:', error);
       throw error;
     }
 
-    // ========================================================================
-    // STEP 4: Update topic with new summary and metadata
-    // Store the ID of the FIRST UNSUMMARIZED message (where divider should appear)
-    // ========================================================================
-    const messagesProcessed = totalNewBatches * BATCH_SIZE;
-    const newLastIndex = currentLastIndex + messagesProcessed;
-
-    // Get the ID of the first message AFTER the last summarized batch
-    // This is where the divider will appear in the UI
-    const firstUnsummarizedMessage = messages[newLastIndex];
-    const firstUnsummarizedMessageId = firstUnsummarizedMessage?.id;
-
-    await get().internal_updateTopic(topicId, {
-      historySummary: accumulatedSummary,
-      metadata: {
-        ...topic?.metadata,
-        model,
-        provider,
-        lastSummarizedMessageId: firstUnsummarizedMessageId,
-        summarizationCount: summaryCount,
-      },
-    });
-
-    // Show success toast
     message.success({
-      content: `Histórico comprimido com sucesso! ${totalNewBatches} batch(es) processado(s).`,
+      content: `Crônicas arquivadas com sucesso! ${expectedBlocks} bloco(s) total(is).`,
       duration: 3,
       key: 'history-summary',
     });
@@ -311,30 +260,7 @@ export const chatMemory: StateCreator<
   triggerManualSummary: async () => {
     const topicId = get().activeTopicId;
     if (!topicId) return;
-
-    // First, clear existing summary (just to be safe/keep state clean)
-    await get().clearHistorySummary();
-
-    // Get all messages in the current topic
     const messages = chatSelectors.activeBaseChats(get());
-
-    // Get historyCount from agent config (number of messages to keep in context)
-    const agentStoreModule = await import('@/store/agent/store');
-    const agentStoreState = agentStoreModule.getAgentStoreState();
-    const agentSelectorsModule = await import('@/store/agent/selectors');
-    const historyCount = agentSelectorsModule.agentChatConfigSelectors.historyCount(agentStoreState);
-
-    // Calculate endIndex: leave the last historyCount messages unsummarized
-    // E.g., with 45 messages and historyCount=10: endIndex = 45 - 10 + 1 = 36
-    // This means we summarize M1-M35 (leaving M36-M45 in context)
-    const endIndex = Math.max(0, messages.length - historyCount + 1);
-
-    // Only summarize if there are enough messages
-    if (endIndex <= 0) return;
-
-    // Trigger the summary with messages up to endIndex + force reset
-    await get().internal_summaryHistory(messages.slice(0, endIndex), { forceReset: true });
+    await get().internal_summaryHistory(messages, { forceReset: true });
   },
 });
-
-

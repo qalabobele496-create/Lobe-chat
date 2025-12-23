@@ -725,10 +725,10 @@ export const streamingExecutor: StateCreator<
                   content: output,
                   reasoning: hasReasoningImages
                     ? {
-                        tempDisplayContent: reasoningParts,
-                        isMultimodal: true,
-                        duration: thinkingDuration,
-                      }
+                      tempDisplayContent: reasoningParts,
+                      isMultimodal: true,
+                      duration: thinkingDuration,
+                    }
                     : !!thinkingContent
                       ? { content: thinkingContent, duration: thinkingDuration }
                       : undefined,
@@ -1072,30 +1072,18 @@ export const streamingExecutor: StateCreator<
       }
     }
 
-    const historyCount = agentChatConfigSelectors.historyCount(agentStoreState);
-    const compressThreshold = 10; // Default: trigger compression after 10 new messages
-
     if (
       agentChatConfigSelectors.enableHistoryCount(agentStoreState) &&
       chatConfig.enableCompressHistory
     ) {
-      // Calculate the range of messages to potentially compress:
-      // - Start from lastSummarizedIndex (messages already summarized)
-      // - End before the last historyCount messages (to keep them in context)
-      const endIndex = Math.max(0, messages.length - historyCount + 1);
+      const filteredMessages = messages.filter((m) => m.role !== 'system' && m.role !== 'tool');
 
-      if (endIndex > lastSummarizedIndex) {
-        // Get only the NEW unsummarized messages (for threshold check)
-        const unsummarizedMessages = messages.slice(lastSummarizedIndex, endIndex);
-
-        // Only compress if we have enough new messages to meet the threshold
-        if (unsummarizedMessages.length >= compressThreshold) {
-          // IMPORTANT: Pass ALL messages up to endIndex so that file attachments
-          // from ANY position (including M1) are preserved as permanent context.
-          // The internal_summaryHistory function separates file messages from
-          // compressible messages internally.
-          await get().internal_summaryHistory(messages.slice(0, endIndex));
-        }
+      // Absolute Trigger Logic:
+      // S1: Dispara em M21 (Sumariza M1-M20)
+      // S2: Dispara em M31 (Sumariza M21-M30)
+      // Trigger whenever we hit a milestone (21, 31, 41...)
+      if (filteredMessages.length >= 21 && (filteredMessages.length - 1) % 10 === 0) {
+        await get().internal_summaryHistory(messages);
       }
     }
   },

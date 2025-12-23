@@ -137,7 +137,7 @@ Extract VERBATIM quotes that are:
 - Promises made BY or TO the party
 - NPCs left in specific states (alive, captured, fleeing, etc.)
 - Quests accepted, updated, or abandoned
-- Cliffhangers or pending decisions
+- cliffhangers or pending decisions
 - Leads or locations mentioned for future exploration
 - **Faction Relations**: Standing with guilds, kingdoms, organizations`;
 
@@ -187,9 +187,7 @@ This is NON-NEGOTIABLE. Summaries shorter than 3500 words are REJECTED and consi
 
 const OUTPUT_REQUIREMENTS_INCREMENTAL = `## ⛔ MANDATORY LENGTH REQUIREMENT — READ CAREFULLY ⛔
 
-**YOUR OUTPUT MUST BE AT LEAST 3500 WORDS (approximately 5000 tokens).**
-
-This is NON-NEGOTIABLE. Summaries shorter than 3500 words are REJECTED and considered FAILURES.
+**YOUR OUTPUT IS NON-NEGOTIABLE.** Summaries shorter than 3500 words are REJECTED and considered FAILURES.
 
 ### WHY THIS LENGTH IS REQUIRED:
 - The input contains ~20,000 tokens of rich RPG content
@@ -291,17 +289,23 @@ ${WRITING_STYLE}
 export const chainIncrementalSummary = (
   previousSummary: string | undefined,
   newMessages: UIChatMessage[],
+  systemRole?: string,
+  filesContext?: string,
 ): Partial<ChatStreamPayload> => {
-  const systemContent = previousSummary
-    ? `${ARCHIVIST_PERSONA}
+  const systemContent = `${ARCHIVIST_PERSONA}
 
-## CONTEXT — YOUR ACCUMULATED MEMORY:
+${systemRole ? `## AGENT SYSTEM INSTRUCTIONS (SY):\n${systemRole}\n` : ''}
+${filesContext ? `## PERMANENT FILES CONTEXT (ANI):\n${filesContext}\n` : ''}
+
+${previousSummary
+      ? `## CONTEXT — YOUR ACCUMULATED MEMORY:
 <context>
 ${previousSummary}
 </context>
 
 ${ANTI_OVERLAP_RULES}`
-    : ARCHIVIST_PERSONA;
+      : ''
+    }`;
 
   const userContent = previousSummary
     ? `${chatHistoryPrompts(newMessages)}
