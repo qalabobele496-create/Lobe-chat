@@ -177,9 +177,9 @@ export const MarketAuthProvider = ({ children, isDesktop }: MarketAuthProviderPr
   const [shouldReauthorize, setShouldReauthorize] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingSignInResolve, setPendingSignInResolve] = useState<
-    ((value: number | null) => void) | null
+    ((_value: number | null) => void) | null
   >(null);
-  const [pendingSignInReject, setPendingSignInReject] = useState<((reason?: any) => void) | null>(
+  const [pendingSignInReject, setPendingSignInReject] = useState<((_reason?: any) => void) | null>(
     null,
   );
 
