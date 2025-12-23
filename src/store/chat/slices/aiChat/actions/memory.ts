@@ -15,7 +15,7 @@ import { topicSelectors } from '../../../selectors';
 import { chatSelectors } from '../../../selectors';
 
 const SUMMARY_DELIMITER = '\u001f';
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 10000;
 const MIN_TOKEN_DENSITY = 4500;
 const SUMMARIZATION_TIMEOUT = 300000;
@@ -70,7 +70,7 @@ const formatFilesContext = (messages: UIChatMessage[]): string => {
       })
       .map((f) => `[File: ${f.name}]\n${f.content || '(content not available)'}`)
       .join('\n\n');
-    
+
     if (files) {
       contextParts.push(`Context from message: ${msg.content}\n\n${files}`);
     }
@@ -213,7 +213,7 @@ export const chatMemory: StateCreator<
               const lastMsg = payload.messages[payload.messages.length - 1];
               if (lastMsg && typeof lastMsg.content === 'string') {
                 lastMsg.content +=
-                  '\n\n⚠️ REINFORCEMENT: Your previous attempt was too short. You MUST expand your output to at least 5000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING.';
+                  `\n\n⚠️ REINFORCEMENT (Attempt ${attempt}): Your previous attempt was too short (${result.length} chars). You MUST expand your output to at least 6000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING. BE EXTREMELY VERBOSE.`;
               }
             }
 
