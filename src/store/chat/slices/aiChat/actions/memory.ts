@@ -204,33 +204,40 @@ export const chatMemory: StateCreator<
             const inputTokens = await encodeAsync(JSON.stringify(payload.messages));
             console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Input tokens approx = ${inputTokens}. Fetching result (stream=true)...`);
 
-            await chatService.fetchPresetTaskResult({
-              abortController,
-              onMessageHandle: (chunk) => {
-                if (chunk.type === 'text') {
-                  result += chunk.text;
-                  if (result.length % 2000 < chunk.text.length) {
-                    console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Progress... ${result.length} chars`);
+            await new Promise<void>((resolve, reject) => {
+              chatService.fetchPresetTaskResult({
+                abortController,
+                onMessageHandle: (chunk) => {
+                  if (chunk.type === 'text') {
+                    result += chunk.text;
+                    if (result.length % 2000 < chunk.text.length) {
+                      console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Progress... ${result.length} chars`);
+                    }
                   }
-                }
-              },
-              onFinish: async (text) => {
-                // Ensure we use the full text from onFinish if available, otherwise use accumulated result
-                result = text || result;
-                console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: LLM finished. Received ${result.length} chars.`);
-              },
-              params: {
-                ...payload,
-                max_tokens: 8192,
-                model,
-                provider,
-                stream: true,
-              },
-              trace: {
-                sessionId: get().activeId,
-                topicId: get().activeTopicId,
-                traceName: TraceNameMap.SummaryHistoryMessages,
-              },
+                },
+                onFinish: async (text) => {
+                  // Ensure we use the full text from onFinish if available, otherwise use accumulated result
+                  result = text || result;
+                  console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: LLM finished. Received ${result.length} chars.`);
+                  resolve();
+                },
+                onError: (e) => {
+                  console.error(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Stream error:`, e);
+                  reject(e);
+                },
+                params: {
+                  ...payload,
+                  max_tokens: 8192,
+                  model,
+                  provider,
+                  stream: true,
+                },
+                trace: {
+                  sessionId: get().activeId,
+                  topicId: get().activeTopicId,
+                  traceName: TraceNameMap.SummaryHistoryMessages,
+                },
+              });
             });
 
             if (!result || result.trim().length === 0) {
