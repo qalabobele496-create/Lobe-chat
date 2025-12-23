@@ -207,9 +207,11 @@ export const chatMemory: StateCreator<
             await chatService.fetchPresetTaskResult({
               abortController,
               onMessageHandle: (chunk) => {
-                result += chunk;
-                if (result.length % 2000 < chunk.length) {
-                  console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Progress... ${result.length} chars`);
+                if (chunk.type === 'text') {
+                  result += chunk.text;
+                  if (result.length % 2000 < chunk.text.length) {
+                    console.log(`[memory.ts] Block ${b + 1} Attempt ${attempt}: Progress... ${result.length} chars`);
+                  }
                 }
               },
               onFinish: async (text) => {
