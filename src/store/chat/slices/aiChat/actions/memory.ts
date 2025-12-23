@@ -18,6 +18,7 @@ const SUMMARY_DELIMITER = '\u001f';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 10000;
 const MIN_TOKEN_DENSITY = 4500;
+const SUMMARIZATION_TIMEOUT = 300000;
 
 const delay = (ms: number) => new Promise((resolve) => {
   setTimeout(resolve, ms);
@@ -171,51 +172,58 @@ export const chatMemory: StateCreator<
 
         const batchSummary = await withRetry(async (attempt) => {
           let result = '';
+          const abortController = new AbortController();
+          const timeoutId = setTimeout(() => abortController.abort(), SUMMARIZATION_TIMEOUT);
 
-          const payload = chainIncrementalSummary(
-            previousSummariesText || undefined,
-            batchMessages,
-            systemRole,
-            globalFilesContext
-          );
+          try {
+            const payload = chainIncrementalSummary(
+              previousSummariesText || undefined,
+              batchMessages,
+              systemRole,
+              globalFilesContext
+            );
 
-          if (attempt > 1 && payload.messages && payload.messages.length > 0) {
-            const lastMsg = payload.messages[payload.messages.length - 1];
-            if (lastMsg && typeof lastMsg.content === 'string') {
-              lastMsg.content +=
-                '\n\n⚠️ REINFORCEMENT: Your previous attempt was too short. You MUST expand your output to at least 5000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING.';
+            if (attempt > 1 && payload.messages && payload.messages.length > 0) {
+              const lastMsg = payload.messages[payload.messages.length - 1];
+              if (lastMsg && typeof lastMsg.content === 'string') {
+                lastMsg.content +=
+                  '\n\n⚠️ REINFORCEMENT: Your previous attempt was too short. You MUST expand your output to at least 5000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING.';
+              }
             }
+
+            await chatService.fetchPresetTaskResult({
+              abortController,
+              onFinish: async (text) => {
+                result = text;
+              },
+              params: {
+                ...payload,
+                max_tokens: 8192,
+                model,
+                provider,
+                stream: false,
+              },
+              trace: {
+                sessionId: get().activeId,
+                topicId: get().activeTopicId,
+                traceName: TraceNameMap.SummaryHistoryMessages,
+              },
+            });
+
+            if (!result || result.trim().length === 0) {
+              throw new Error('Resposta do arquivista vazia.');
+            }
+
+            const tokenCount = await encodeAsync(result);
+            if (tokenCount < MIN_TOKEN_DENSITY && attempt < MAX_RETRIES) {
+              console.warn(`[memory.ts] Densidade baixa (${tokenCount} tokens). Tentando reforço...`);
+              throw new Error('Densidade insuficiente');
+            }
+
+            return { content: result, tokens: tokenCount };
+          } finally {
+            clearTimeout(timeoutId);
           }
-
-          await chatService.fetchPresetTaskResult({
-            onFinish: async (text) => {
-              result = text;
-            },
-            params: {
-              ...payload,
-              max_tokens: 8192,
-              model,
-              provider,
-              stream: false,
-            },
-            trace: {
-              sessionId: get().activeId,
-              topicId: get().activeTopicId,
-              traceName: TraceNameMap.SummaryHistoryMessages,
-            },
-          });
-
-          if (!result || result.trim().length === 0) {
-            throw new Error('Resposta do arquivista vazia.');
-          }
-
-          const tokenCount = await encodeAsync(result);
-          if (tokenCount < MIN_TOKEN_DENSITY && attempt < MAX_RETRIES) {
-            console.warn(`[memory.ts] Densidade baixa (${tokenCount} tokens). Tentando reforço...`);
-            throw new Error('Densidade insuficiente');
-          }
-
-          return { content: result, tokens: tokenCount };
         });
 
         const metadata = {
