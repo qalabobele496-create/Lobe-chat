@@ -173,6 +173,11 @@ export const chatMemory: StateCreator<
         const batchMessages = filteredMessages.slice(startIdx, endIdx);
         const nextMessageId = filteredMessages[endIdx]?.id;
 
+        if (b > currentBlockCount) {
+          console.log(`[memory.ts] Waiting 10s before next block ${b + 1}...`);
+          await delay(10000);
+        }
+
         console.log(`[memory.ts] Processing block ${b + 1}/${expectedBlocks}: startIdx=${startIdx}, endIdx=${endIdx}, batchSize=${batchMessages.length}`);
 
         let previousSummariesText = '';
