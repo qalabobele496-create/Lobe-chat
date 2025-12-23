@@ -28,10 +28,12 @@ import { toolSelectors } from '@/store/tool/selectors';
 import { isCanUseVideo, isCanUseVision } from './helper';
 
 interface ContextEngineeringContext {
+  enableCompressHistory?: boolean;
   enableHistoryCount?: boolean;
   historyCount?: number;
   historySummary?: string;
   inputTemplate?: string;
+  lastSummarizedMessageId?: string;
   messages: UIChatMessage[];
   model: string;
   provider: string;
@@ -47,9 +49,11 @@ export const contextEngineering = async ({
   provider,
   systemRole,
   inputTemplate,
+  enableCompressHistory,
   enableHistoryCount,
   historyCount,
   historySummary,
+  lastSummarizedMessageId,
 }: ContextEngineeringContext): Promise<OpenAIChatMessage[]> => {
   const toolNameResolver = new ToolNameResolver();
 
@@ -65,6 +69,17 @@ export const contextEngineering = async ({
   const knowledgeBases = agentKnowledgeBases
     .filter((kb) => kb.enabled)
     .map((kb) => ({ description: kb.description, id: kb.id, name: kb.name }));
+
+  // Filter messages if lastSummarizedMessageId and historySummary are provided
+  // This ensures that summarized messages are not sent to the LLM again
+  // We only filter if historySummary is present to avoid losing context if summary is disabled
+  let finalMessages = messages;
+  if (enableCompressHistory && lastSummarizedMessageId && historySummary) {
+    const index = messages.findIndex((m) => m.id === lastSummarizedMessageId);
+    if (index !== -1) {
+      finalMessages = messages.slice(index);
+    }
+  }
 
   const pipeline = new ContextEngine({
     pipeline: [
@@ -130,7 +145,7 @@ export const contextEngineering = async ({
     ],
   });
 
-  const result = await pipeline.process({ messages });
+  const result = await pipeline.process({ messages: finalMessages });
 
   return result.messages;
 };

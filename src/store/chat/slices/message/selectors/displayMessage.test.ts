@@ -815,4 +815,57 @@ describe('displayMessageSelectors', () => {
       expect(result).toBe('tool-result-id');
     });
   });
+
+  describe('summarized history slicing', () => {
+    it('should slice messages from lastSummarizedMessageId when compress history is enabled', () => {
+      // Build a longer message list so overlap slicing is observable
+      const longMessages = Array.from({ length: 25 }).map((_, i) =>
+        ({
+          id: `m${i + 1}`,
+          content: `msg-${i + 1}`,
+          role: 'user',
+        }) as UIChatMessage,
+      );
+
+      act(() => {
+        useAgentStore.setState({
+          activeId: 'inbox',
+          agentMap: {
+            inbox: {
+              chatConfig: {
+                enableCompressHistory: true,
+              },
+              model: 'abc',
+            } as LobeAgentConfig,
+          },
+        });
+      });
+
+      const state = merge(initialStore, {
+        messagesMap: {
+          [messageMapKey('abc', 't1')]: longMessages,
+        },
+        activeId: 'abc',
+        activeTopicId: 't1',
+        topicMaps: {
+          abc: [
+            {
+              id: 't1',
+              historySummary: 'S1',
+              metadata: {
+                lastSummarizedMessageId: 'm21',
+              },
+            },
+          ],
+        },
+      });
+
+      // lastSummarizedMessageId is m21 (index 20) => slice starts at m21
+      const ids = displayMessageSelectors.mainDisplayChatIDs(state);
+      expect(ids[0]).toBe('m21');
+      expect(ids).toContain('m21');
+      expect(ids.at(-1)).toBe('m25');
+      expect(ids).toHaveLength(5);
+    });
+  });
 });

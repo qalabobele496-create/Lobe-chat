@@ -90,6 +90,13 @@ const TokenDetail = memo<TokenDetailProps>(({ usage, performance, model, provide
   ].filter(Boolean) as TokenProgressItem[];
 
   const totalDetail = [
+    !isShowCredit && !!detailTokens.totalInput && {
+      color: theme.colorFillSecondary,
+
+      id: 'totalInput',
+      title: t('messages.tokenDetails.input'),
+      value: detailTokens.totalInput.token,
+    },
     !!detailTokens.inputCacheMiss && {
       color: theme.colorFill,
 

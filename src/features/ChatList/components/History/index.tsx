@@ -80,9 +80,9 @@ const History = memo(() => {
 
   return (
     <Flexbox paddingInline={16} style={{ paddingBottom: 8 }}>
-      <HistoryDivider enable />
       {enableCompressHistory && summaries.length > 0 && (
         <Flexbox className={styles.container} gap={8}>
+          <HistoryDivider enable />
           <Flexbox align={'flex-start'} gap={8} horizontal>
             <Center height={20} width={20}>
               <Icon icon={ScrollText} size={16} style={{ color: theme.colorTextDescription }} />

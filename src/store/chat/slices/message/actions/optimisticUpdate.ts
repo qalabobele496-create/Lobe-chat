@@ -180,26 +180,60 @@ export const messageOptimisticUpdate: StateCreator<
   },
 
   optimisticDeleteMessage: async (id: string, context) => {
-    get().internal_dispatchMessage({ id, type: 'deleteMessage' }, context);
-    const { sessionId, topicId } = get().internal_getSessionContext(context);
+    const { internal_dispatchMessage, internal_getSessionContext, replaceMessages, internal_updateTopic } = get();
+    const { topicSelectors } = await import('../../../selectors');
+
+    internal_dispatchMessage({ id, type: 'deleteMessage' }, context);
+    const { sessionId, topicId } = internal_getSessionContext(context);
+
+    // Safety check: if the anchor message for summarization is deleted, clear it from topic metadata
+    if (topicId) {
+      const topic = topicSelectors.currentActiveTopic(get());
+      if (topic?.metadata?.lastSummarizedMessageId === id) {
+        await internal_updateTopic(topicId, {
+          metadata: {
+            ...topic.metadata,
+            lastSummarizedMessageId: undefined,
+          },
+        });
+      }
+    }
+
     const result = await messageService.removeMessage(id, {
       sessionId,
       topicId,
     });
     if (result?.success && result.messages) {
-      get().replaceMessages(result.messages, { sessionId, topicId });
+      replaceMessages(result.messages, { sessionId, topicId });
     }
   },
 
   optimisticDeleteMessages: async (ids, context) => {
-    get().internal_dispatchMessage({ ids, type: 'deleteMessages' }, context);
-    const { sessionId, topicId } = get().internal_getSessionContext(context);
+    const { internal_dispatchMessage, internal_getSessionContext, replaceMessages, internal_updateTopic } = get();
+    const { topicSelectors } = await import('../../../selectors');
+
+    internal_dispatchMessage({ ids, type: 'deleteMessages' }, context);
+    const { sessionId, topicId } = internal_getSessionContext(context);
+
+    // Safety check: if the anchor message for summarization is deleted, clear it from topic metadata
+    if (topicId) {
+      const topic = topicSelectors.currentActiveTopic(get());
+      if (topic?.metadata?.lastSummarizedMessageId && ids.includes(topic.metadata.lastSummarizedMessageId)) {
+        await internal_updateTopic(topicId, {
+          metadata: {
+            ...topic.metadata,
+            lastSummarizedMessageId: undefined,
+          },
+        });
+      }
+    }
+
     const result = await messageService.removeMessages(ids, {
       sessionId,
       topicId,
     });
     if (result?.success && result.messages) {
-      get().replaceMessages(result.messages, { sessionId, topicId });
+      replaceMessages(result.messages, { sessionId, topicId });
     }
   },
 

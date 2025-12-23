@@ -66,6 +66,7 @@ interface FetchAITaskResultParams extends FetchSSEOptions {
 interface CreateAssistantMessageStream extends FetchSSEOptions {
   abortController?: AbortController;
   historySummary?: string;
+  lastSummarizedMessageId?: string;
   params: GetChatCompletionPayload;
   trace?: TracePayload;
 }
@@ -109,10 +110,13 @@ class ChatService {
 
     // Apply context engineering with preprocessing configuration
     const oaiMessages = await contextEngineering({
+      enableCompressHistory: chatConfig.enableCompressHistory,
       enableHistoryCount: agentChatConfigSelectors.enableHistoryCount(agentStoreState),
       // include user messages
       historyCount: agentChatConfigSelectors.historyCount(agentStoreState) + 2,
+      historySummary: options?.historySummary,
       inputTemplate: chatConfig.inputTemplate,
+      lastSummarizedMessageId: options?.lastSummarizedMessageId,
       messages,
       model: payload.model,
       provider: payload.provider!,
@@ -234,9 +238,11 @@ class ChatService {
     onFinish,
     trace,
     historySummary,
+    lastSummarizedMessageId,
   }: CreateAssistantMessageStream) => {
     await this.createAssistantMessage(params, {
       historySummary,
+      lastSummarizedMessageId,
       onAbort,
       onErrorHandle,
       onFinish,

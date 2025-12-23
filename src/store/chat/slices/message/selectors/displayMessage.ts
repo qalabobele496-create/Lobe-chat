@@ -12,6 +12,7 @@ import { userProfileSelectors } from '@/store/user/selectors';
 import { chatHelpers } from '../../../helpers';
 import type { ChatStoreState } from '../../../initialState';
 import { messageMapKey } from '../../../utils/messageMapKey';
+import { topicSelectors } from '../../topic/selectors';
 
 /**
  * Display Message Selectors
@@ -67,10 +68,10 @@ export const currentDisplayChatKey = (s: ChatStoreState) =>
  */
 const getDisplayMessagesByKey =
   (key: string) =>
-  (s: ChatStoreState): UIChatMessage[] => {
-    const messages = s.messagesMap[key] || [];
-    return messages.map((i) => ({ ...i, meta: getMeta(i) }));
-  };
+    (s: ChatStoreState): UIChatMessage[] => {
+      const messages = s.messagesMap[key] || [];
+      return messages.map((i) => ({ ...i, meta: getMeta(i) }));
+    };
 
 /**
  * Get current active session's display messages (includes assistantGroup messages)
@@ -112,12 +113,27 @@ const getChatsWithThread = (s: ChatStoreState, messages: UIChatMessage[]) => {
 
 // ============= Main Display Chats ========== //
 
+const filterSummarizedMessages = (s: ChatStoreState, messages: UIChatMessage[]) => {
+  const chatConfig = agentChatConfigSelectors.currentChatConfig(useAgentStore.getState());
+  if (!chatConfig.enableCompressHistory) return messages;
+
+  const topic = topicSelectors.currentActiveTopic(s);
+  const lastSummarizedMessageId = topic?.metadata?.lastSummarizedMessageId;
+  if (!lastSummarizedMessageId) return messages;
+
+  const index = messages.findIndex((m) => m.id === lastSummarizedMessageId);
+  if (index === -1) return messages;
+
+  return messages.slice(index);
+};
+
 /**
  * Main display chats for UI rendering (without tool messages, with thread handling)
  */
 const mainDisplayChats = (s: ChatStoreState): UIChatMessage[] => {
   const displayChats = activeDisplayMessages(s);
-  return getChatsWithThread(s, displayChats);
+  const filteredChats = filterSummarizedMessages(s, displayChats);
+  return getChatsWithThread(s, filteredChats);
 };
 
 /**
@@ -130,7 +146,8 @@ const mainDisplayChatIDs = (s: ChatStoreState) => mainDisplayChats(s).map((s) =>
  */
 const mainAIChats = (s: ChatStoreState): UIChatMessage[] => {
   const messages = activeDisplayMessages(s);
-  return getChatsWithThread(s, messages);
+  const filteredChats = filterSummarizedMessages(s, messages);
+  return getChatsWithThread(s, filteredChats);
 };
 
 /**
@@ -192,39 +209,39 @@ const showInboxWelcome = (s: ChatStoreState): boolean => {
  */
 const getThreadMessages =
   (agentId: string) =>
-  (s: ChatStoreState): UIChatMessage[] => {
-    if (!agentId) return [];
+    (s: ChatStoreState): UIChatMessage[] => {
+      if (!agentId) return [];
 
-    const allMessages = activeDisplayMessages(s);
+      const allMessages = activeDisplayMessages(s);
 
-    // Filter messages to only include:
-    // 1. User messages sent TO the specific agent (role: 'user' && targetId matches agentId)
-    // 2. Assistant messages FROM the specific agent sent TO user (role: 'assistant' && agentId matches && targetId is 'user')
-    return allMessages.filter((message) => {
-      if (message.role === 'user' && message.targetId === agentId) {
-        return true; // Include user messages sent to the specific agent
-      }
+      // Filter messages to only include:
+      // 1. User messages sent TO the specific agent (role: 'user' && targetId matches agentId)
+      // 2. Assistant messages FROM the specific agent sent TO user (role: 'assistant' && agentId matches && targetId is 'user')
+      return allMessages.filter((message) => {
+        if (message.role === 'user' && message.targetId === agentId) {
+          return true; // Include user messages sent to the specific agent
+        }
 
-      if (
-        message.role === 'assistant' &&
-        message.agentId === agentId &&
-        message.targetId === 'user'
-      ) {
-        return true; // Include messages from the specific agent sent to user
-      }
+        if (
+          message.role === 'assistant' &&
+          message.agentId === agentId &&
+          message.targetId === 'user'
+        ) {
+          return true; // Include messages from the specific agent sent to user
+        }
 
-      return false; // Exclude all other messages
-    });
-  };
+        return false; // Exclude all other messages
+      });
+    };
 
 /**
  * Gets thread message IDs for a specific agent
  */
 const getThreadMessageIDs =
   (agentId: string) =>
-  (s: ChatStoreState): string[] => {
-    return getThreadMessages(agentId)(s).map((message) => message.id);
-  };
+    (s: ChatStoreState): string[] => {
+      return getThreadMessages(agentId)(s).map((message) => message.id);
+    };
 
 // ============= Group Chat Selectors ========== //
 

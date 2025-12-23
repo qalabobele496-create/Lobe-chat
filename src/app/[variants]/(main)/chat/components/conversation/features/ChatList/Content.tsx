@@ -3,10 +3,11 @@
 import React, { memo, useCallback } from 'react';
 
 import { SkeletonList, VirtualizedList } from '@/features/ChatList';
+import History from '@/features/ChatList/components/History';
 import WideScreenContainer from '@/features/ChatList/components/WideScreenContainer';
 import { useFetchMessages } from '@/hooks/useFetchMessages';
 import { useChatStore } from '@/store/chat';
-import { displayMessageSelectors } from '@/store/chat/selectors';
+import { displayMessageSelectors, topicSelectors } from '@/store/chat/selectors';
 
 import MainChatItem from './ChatItem';
 import Welcome from './WelcomeChatItem';
@@ -16,8 +17,9 @@ interface ListProps {
 }
 
 const Content = memo<ListProps>(({ mobile }) => {
-  const [isCurrentChatLoaded] = useChatStore((s) => [
+  const [isCurrentChatLoaded, hasSummary] = useChatStore((s) => [
     displayMessageSelectors.isCurrentDisplayChatLoaded(s),
+    !!topicSelectors.currentActiveTopic(s)?.historySummary,
   ]);
 
   useFetchMessages();
@@ -33,6 +35,7 @@ const Content = memo<ListProps>(({ mobile }) => {
   if (data.length === 0)
     return (
       <WideScreenContainer flex={1} height={'100%'}>
+        {hasSummary && <History />}
         <Welcome />
       </WideScreenContainer>
     );

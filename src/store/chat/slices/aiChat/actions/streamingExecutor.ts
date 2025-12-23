@@ -309,8 +309,14 @@ export const streamingExecutor: StateCreator<
     const historySummary = chatConfig.enableCompressHistory
       ? topicSelectors.currentActiveTopicSummary(get())
       : undefined;
+
+    const topic = topicSelectors.currentActiveTopic(get());
+    const lastSummarizedMessageId = topic?.metadata?.lastSummarizedMessageId;
+
     await chatService.createAssistantMessageStream({
       abortController,
+      historySummary: historySummary?.content,
+      lastSummarizedMessageId,
       params: {
         messages,
         model,
@@ -318,7 +324,6 @@ export const streamingExecutor: StateCreator<
         ...finalAgentConfig.params,
         plugins: finalAgentConfig.plugins,
       },
-      historySummary: historySummary?.content,
       trace: {
         traceId,
         sessionId,

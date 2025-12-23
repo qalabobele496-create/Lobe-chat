@@ -149,8 +149,12 @@ export const topicRouter = router({
           messages: z.array(z.string()).optional(),
           metadata: z
             .object({
+              lastSummarizedMessageId: z.string().optional(),
               model: z.string().optional(),
               provider: z.string().optional(),
+              summarizationCount: z.number().optional(),
+              userMemoryExtractRunState: z.any().optional(),
+              userMemoryExtractStatus: z.string().optional(),
             })
             .optional(),
           sessionId: z.string().optional(),
