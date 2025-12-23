@@ -181,7 +181,10 @@ export const chatMemory: StateCreator<
 
           if (attempt > 1 && payload.messages && payload.messages.length > 0) {
             const lastMsg = payload.messages[payload.messages.length - 1];
-            lastMsg.content += "\n\n⚠️ REINFORCEMENT: Your previous attempt was too short. You MUST expand your output to at least 5000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING.";
+            if (lastMsg && typeof lastMsg.content === 'string') {
+              lastMsg.content +=
+                '\n\n⚠️ REINFORCEMENT: Your previous attempt was too short. You MUST expand your output to at least 5000 tokens. Include more dialogue, more combat details, and more sensory descriptions. DO NOT SUMMARIZE, CHRONICLE EVERYTHING.';
+            }
           }
 
           await chatService.fetchPresetTaskResult({
