@@ -2,6 +2,81 @@
 
 # Changelog
 
+## [Version 2.0.0-next.188](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.187...v2.0.0-next.188)
+
+<sup>Released on **2026-01-01**</sup>
+
+#### 💄 Styles
+
+- **misc**: Improve tools UI and fix Google schema compatibility.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Improve tools UI and fix Google schema compatibility, closes [#11096](https://github.com/lobehub/lobe-chat/issues/11096) ([70a9cff](https://github.com/lobehub/lobe-chat/commit/70a9cff))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.187](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.186...v2.0.0-next.187)
+
+<sup>Released on **2026-01-01**</sup>
+
+#### 💄 Styles
+
+- **misc**: Add Gemini 3 Flash & Doubao Seed 1.8 models.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Styles
+
+- **misc**: Add Gemini 3 Flash & Doubao Seed 1.8 models, closes [#10832](https://github.com/lobehub/lobe-chat/issues/10832) ([cb35935](https://github.com/lobehub/lobe-chat/commit/cb35935))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
+## [Version 2.0.0-next.186](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.185...v2.0.0-next.186)
+
+<sup>Released on **2026-01-01**</sup>
+
+#### ♻ Code Refactoring
+
+- **misc**: Refactor oidc env to auth env.
+
+<br/>
+
+<details>
+<summary><kbd>Improvements and Fixes</kbd></summary>
+
+#### Code refactoring
+
+- **misc**: Refactor oidc env to auth env, closes [#11095](https://github.com/lobehub/lobe-chat/issues/11095) ([6e8d4ff](https://github.com/lobehub/lobe-chat/commit/6e8d4ff))
+
+</details>
+
+<div align="right">
+
+[![](https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square)](#readme-top)
+
+</div>
+
 ## [Version 2.0.0-next.185](https://github.com/lobehub/lobe-chat/compare/v2.0.0-next.184...v2.0.0-next.185)
 
 <sup>Released on **2026-01-01**</sup>
