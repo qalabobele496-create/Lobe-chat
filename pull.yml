@@ -1,8 +1,0 @@
-version: "1"
-rules:
-  - base: next                # O branch do SEU fork que vai receber o sync
-    upstream: lobehub:next    # O repositório original (dono:branch)
-    mergeMethod: merge        # Conforme você pediu: faz um merge commit
-    mergeUnstable: false      # Não faz merge se houver falhas de CI no original
-
-label: ":arrow_heading_down: pull" # Etiqueta opcional para o PR automático
