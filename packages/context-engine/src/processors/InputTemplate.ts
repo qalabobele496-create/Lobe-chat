@@ -44,23 +44,35 @@ export class InputTemplateProcessor extends BaseProcessor {
 
       log(`Applying input template: ${this.config.inputTemplate}`);
 
-      // Process each message
-      for (let i = 0; i < clonedContext.messages.length; i++) {
-        const message = clonedContext.messages[i];
+      // Apply template ONLY to the last user message
+      // Avoid mutating historical user messages because it changes the original context.
+      let lastUserIndex = -1;
+      for (let i = clonedContext.messages.length - 1; i >= 0; i--) {
+        if (clonedContext.messages[i]?.role === 'user') {
+          lastUserIndex = i;
+          break;
+        }
+      }
 
-        // Only apply template to user messages
-        if (message.role === 'user') {
+      if (lastUserIndex >= 0) {
+        const message = clonedContext.messages[lastUserIndex];
+
+        // Only apply template to string content
+        // Some models / pipelines may include multimodal content arrays.
+        if (typeof message.content !== 'string') {
+          log(`Skip input template for non-string content message ${message.id}`);
+        } else {
           try {
             const originalContent = message.content;
             const processedContent = compiler({ text: originalContent });
 
             if (processedContent !== originalContent) {
-              clonedContext.messages[i] = {
+              clonedContext.messages[lastUserIndex] = {
                 ...message,
                 content: processedContent,
               };
               processedCount++;
-              log(`Applied template to message ${message.id}`);
+              log(`Applied template to last user message ${message.id}`);
             }
           } catch (error) {
             log.extend('error')(`Error applying template to message ${message.id}: ${error}`);

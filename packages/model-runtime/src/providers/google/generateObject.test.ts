@@ -216,7 +216,24 @@ describe('Google generateObject', () => {
             }),
             type: SchemaType.OBJECT,
           }),
-          safetySettings: expect.any(Array),
+          safetySettings: expect.arrayContaining([
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_HATE_SPEECH',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_HARASSMENT',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_NONE',
+            }),
+          ]),
         }),
         contents,
         model: 'gemini-2.5-flash',
@@ -264,6 +281,24 @@ describe('Google generateObject', () => {
             }),
             type: SchemaType.OBJECT,
           }),
+          safetySettings: expect.arrayContaining([
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_HATE_SPEECH',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_HARASSMENT',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_NONE',
+            }),
+          ]),
         }),
         contents,
         model: 'gemini-2.5-flash',
@@ -469,7 +504,24 @@ describe('Google generateObject', () => {
 
       expect(mockClient.models.generateContent).toHaveBeenCalledWith({
         config: expect.objectContaining({
-          safetySettings: expect.any(Array),
+          safetySettings: expect.arrayContaining([
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_HATE_SPEECH',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_HARASSMENT',
+              threshold: 'BLOCK_NONE',
+            }),
+            expect.objectContaining({
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_NONE',
+            }),
+          ]),
           toolConfig: {
             functionCallingConfig: {
               mode: 'ANY',

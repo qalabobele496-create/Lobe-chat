@@ -655,7 +655,7 @@ describe('contextEngineering', () => {
       ]);
     });
 
-    it('should apply input template to user messages', async () => {
+    it('should apply input template to the last user message only', async () => {
       const messages: UIChatMessage[] = [
         {
           role: 'user',
@@ -673,6 +673,14 @@ describe('contextEngineering', () => {
           meta: {},
           updatedAt: Date.now(),
         },
+        {
+          role: 'user',
+          content: 'Latest user input',
+          createdAt: Date.now(),
+          id: 'test-latest-user',
+          meta: {},
+          updatedAt: Date.now(),
+        },
       ];
 
       const result = await contextEngineering({
@@ -682,18 +690,64 @@ describe('contextEngineering', () => {
         inputTemplate: 'Template: {{text}} - End',
       });
 
-      // Should apply template to user message only
+      // Should apply template only to the last user message
       expect(result).toEqual([
         {
-          content: 'Template: Original user input - End',
+          content: 'Original user input',
           role: 'user',
         },
         {
           role: 'assistant',
           content: 'Assistant response',
         },
+        {
+          content: 'Template: Latest user input - End',
+          role: 'user',
+        },
       ]);
       expect(result[1].content).toBe('Assistant response'); // Unchanged
+    });
+
+    it('should skip input template when last user message has non-string content', async () => {
+      const messages: UIChatMessage[] = [
+        {
+          role: 'user',
+          content: 'Original user input',
+          createdAt: Date.now(),
+          id: 'test-template-non-string-1',
+          meta: {},
+          updatedAt: Date.now(),
+        },
+        {
+          role: 'assistant',
+          content: 'Assistant response',
+          createdAt: Date.now(),
+          id: 'test-template-non-string-2',
+          meta: {},
+          updatedAt: Date.now(),
+        },
+        {
+          role: 'user',
+          // Simulate multimodal content
+          content: [{ text: 'Latest user input', type: 'text' }] as any,
+          createdAt: Date.now(),
+          id: 'test-template-non-string-3',
+          meta: {},
+          updatedAt: Date.now(),
+        },
+      ];
+
+      const result = await contextEngineering({
+        messages,
+        model: 'gpt-4',
+        provider: 'openai',
+        inputTemplate: 'Template: {{text}} - End',
+      });
+
+      // Should not modify the last user message because it's non-string
+      expect(result[0].content).toBe('Original user input');
+      expect(result[1].content).toBe('Assistant response');
+      expect(result[2].content).toEqual(messages[2].content);
     });
 
     it('should inject system role at the beginning', async () => {

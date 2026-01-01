@@ -31,8 +31,6 @@ import { resolveGoogleThinkingConfig } from './thinkingResolver';
 
 const log = debug('model-runtime:google');
 
-const modelsOffSafetySettings = new Set(['gemini-2.0-flash-exp']);
-
 const modelsWithModalities = new Set([
   'gemini-2.0-flash-exp',
   'gemini-2.0-flash-exp-image-generation',
@@ -80,9 +78,6 @@ enum HarmBlockThreshold {
 }
 
 function getThreshold(model: string): HarmBlockThreshold {
-  if (modelsOffSafetySettings.has(model)) {
-    return 'OFF' as HarmBlockThreshold; // https://discuss.ai.google.dev/t/59352
-  }
   return HarmBlockThreshold.BLOCK_NONE;
 }
 
